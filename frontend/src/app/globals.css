@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --bg-main: #0b1522;
+  --bg-aux-1: rgba(59, 130, 246, 0.1);
+  --bg-aux-2: rgba(56, 189, 248, 0.08);
+  --text-main: #e2e8f0;
+  --panel-bg: #111d2c;
+  --panel-border: rgba(100, 116, 139, 0.4);
+  --panel-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-main: #edf4ff;
+  --bg-aux-1: rgba(14, 116, 144, 0.08);
+  --bg-aux-2: rgba(37, 99, 235, 0.1);
+  --text-main: #0f172a;
+  --panel-bg: rgba(255, 255, 255, 0.92);
+  --panel-border: rgba(30, 64, 175, 0.14);
+  --panel-shadow: 0 8px 24px rgba(30, 64, 175, 0.12);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply antialiased transition-colors duration-300;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  background-image: radial-gradient(circle at top right, var(--bg-aux-1), transparent 42%),
+    radial-gradient(circle at bottom left, var(--bg-aux-2), transparent 38%);
+}
+
+.card-surface {
+  @apply rounded-xl backdrop-blur-md;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--panel-shadow);
+}
+
+.dashboard-shell[data-theme="dark"],
+.dashboard-shell:not([data-theme]) {
+  background-color: #0b1522;
+}
+
+[data-theme="light"] .dashboard-card {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(30, 64, 175, 0.14);
+}
+
+[data-theme="light"] .text-white,
+[data-theme="light"] .text-slate-100,
+[data-theme="light"] .text-slate-50 {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .text-slate-300,
+[data-theme="light"] .text-slate-400 {
+  color: #334155 !important;
+}
+
+/* Scroll fino estilo panel sensores (referencia) */
+.sensor-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) rgba(15, 23, 42, 0.85);
+}
+
+.sensor-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sensor-scroll::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 9999px;
+}
+
+.sensor-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45);
+  border-radius: 9999px;
+}
+
+.sensor-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.6);
+}
