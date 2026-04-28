@@ -1,5 +1,6 @@
 import { CloudRain, Droplets, Gauge, Thermometer, Waves, Wind } from "lucide-react";
 import { Card } from "@/components/ui/Card";
+import { DashboardScrollArea } from "@/components/ui/DashboardScrollArea";
 import { IconBox } from "@/components/ui/IconBox";
 import type { SensorReading } from "@/types/dashboard.types";
 import { formatStatusLabel } from "@/utils/formatters";
@@ -18,7 +19,7 @@ export function SensorPanel({ sensors }: { sensors: SensorReading[] }) {
   return (
     <Card className="flex h-full max-h-full min-h-0 flex-col overflow-hidden" padding="sm">
       <h2 className="mb-2 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Sensores</h2>
-      <ul className="sensor-scroll min-h-0 flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden pr-1">
+      <DashboardScrollArea as="ul" className="space-y-1.5">
         {sensors.map((sensor) => {
           const Icon = iconById[sensor.id] ?? Droplets;
           const online = sensor.status === "online";
@@ -50,7 +51,7 @@ export function SensorPanel({ sensors }: { sensors: SensorReading[] }) {
             </li>
           );
         })}
-      </ul>
+      </DashboardScrollArea>
     </Card>
   );
 }
