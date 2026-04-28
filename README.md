@@ -18,7 +18,7 @@ Proyecto de **monitoreo y riego inteligente** con sensores IoT: dashboard en el 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev --turbo
 ```
 
 Abre [http://localhost:3000](http://localhost:3000).

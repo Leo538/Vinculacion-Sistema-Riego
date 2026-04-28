@@ -1,5 +1,3 @@
-"use client";
-
 import { Sidebar } from "@/shared/components/layout/Sidebar";
 import type { ReactNode } from "react";
 

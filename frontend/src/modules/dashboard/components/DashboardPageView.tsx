@@ -1,6 +1,3 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import { AlertPanel } from "@/modules/dashboard/components/AlertPanel";
 import { ChartPanel } from "@/modules/dashboard/components/ChartPanel";
 import { ForecastPanel } from "@/modules/dashboard/components/ForecastPanel";
@@ -9,26 +6,10 @@ import { IrrigationRecommendation } from "@/modules/dashboard/components/Irrigat
 import { SensorPanel } from "@/modules/dashboard/components/SensorPanel";
 import { SummaryCard } from "@/modules/dashboard/components/SummaryCard";
 import { WeatherPanel } from "@/modules/dashboard/components/WeatherPanel";
-import { mockDashboardData } from "@/modules/dashboard/data/mockDashboardData";
-import { getOpenMeteoDashboardData } from "@/modules/dashboard/data/openMeteoDashboardData";
 import type { DashboardData } from "@/modules/dashboard/types";
 import { AppShell } from "@/shared/components/layout/AppShell";
 
-export function DashboardPageView() {
-  const [dashboardData, setDashboardData] = useState<DashboardData>(mockDashboardData);
-
-  useEffect(() => {
-    let mounted = true;
-    getOpenMeteoDashboardData().then((data) => {
-      if (mounted) {
-        setDashboardData(data);
-      }
-    });
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
+export function DashboardPageView({ dashboardData }: { dashboardData: DashboardData }) {
   return (
     <AppShell mainClassName="overflow-hidden">
       <Header />

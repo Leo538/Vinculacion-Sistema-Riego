@@ -5,7 +5,7 @@ import { Card } from "@/shared/components/ui/Card";
 export function ForecastPanel({ forecast }: { forecast: ForecastDay[] }) {
   return (
     <Card className="flex h-full min-h-0 flex-col overflow-hidden" padding="sm">
-      <h2 className="mb-2 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+      <h2 className="mb-2 shrink-0 text-sm font-semibold uppercase tracking-wide text-white">
         Pronóstico (7 días)
       </h2>
       <div className="min-h-0 flex-1 overflow-x-auto">
@@ -17,12 +17,12 @@ export function ForecastPanel({ forecast }: { forecast: ForecastDay[] }) {
                 index < forecast.length - 1 ? "border-r border-slate-700/40" : ""
               }`}
             >
-              <p className="text-[9px] font-medium text-slate-500">{day.day}</p>
+              <p className="text-sm font-semibold leading-tight text-white">{day.day}</p>
               <div className="flex flex-1 flex-col items-center justify-center">
                 <WeatherForecastIcon condition={day.condition} />
               </div>
               <p className="text-sm font-semibold leading-tight text-white">{day.maxTemp}°</p>
-              <p className="text-[11px] leading-tight text-slate-500">{day.minTemp}°</p>
+              <p className="text-sm font-semibold leading-tight text-white">{day.minTemp}°</p>
             </div>
           ))}
         </div>

@@ -1,17 +1,7 @@
-import { Activity, CloudRain, Droplets, Gauge, Sun, Thermometer, Waves } from "lucide-react";
 import type { SensorCompactStatusItem } from "@/modules/sensores/types";
+import { sensorIconMap } from "@/modules/sensores/components/sensorIconMap";
 import { Card } from "@/shared/components/ui/Card";
 import { IconBox } from "@/shared/components/ui/IconBox";
-
-const iconMap = {
-  droplets: Droplets,
-  thermometer: Thermometer,
-  waves: Waves,
-  activity: Activity,
-  "cloud-rain": CloudRain,
-  sun: Sun,
-  gauge: Gauge
-} as const;
 
 export function SensorStatusCompact({ sensors }: { sensors: SensorCompactStatusItem[] }) {
   return (
@@ -22,7 +12,7 @@ export function SensorStatusCompact({ sensors }: { sensors: SensorCompactStatusI
       </div>
       <ul className="space-y-1.5">
         {sensors.map((sensor) => {
-          const Icon = iconMap[sensor.iconKey];
+          const Icon = sensorIconMap[sensor.iconKey];
           return (
             <li
               key={sensor.id}

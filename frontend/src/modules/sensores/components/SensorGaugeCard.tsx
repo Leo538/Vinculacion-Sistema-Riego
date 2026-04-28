@@ -1,19 +1,8 @@
-"use client";
-
-import { Activity, CloudRain, Droplets, Gauge, Sun, Thermometer, Waves } from "lucide-react";
 import type { SensorGaugeItem } from "@/modules/sensores/types";
+import { sensorIconMap } from "@/modules/sensores/components/sensorIconMap";
 import { Card } from "@/shared/components/ui/Card";
 import { IconBox } from "@/shared/components/ui/IconBox";
-
-const iconMap = {
-  droplets: Droplets,
-  thermometer: Thermometer,
-  waves: Waves,
-  activity: Activity,
-  "cloud-rain": CloudRain,
-  sun: Sun,
-  gauge: Gauge
-} as const;
+import type { CSSProperties } from "react";
 
 function clampPct(value: number): number {
   return Math.max(0, Math.min(100, value));
@@ -32,7 +21,7 @@ function getGaugeStatus(pct: number): string {
 }
 
 export function SensorGaugeCard({ sensor }: { sensor: SensorGaugeItem }) {
-  const Icon = iconMap[sensor.iconKey];
+  const Icon = sensorIconMap[sensor.iconKey];
   const ratio = ((sensor.value - sensor.min) / (sensor.max - sensor.min || 1)) * 100;
   const percent = clampPct(ratio);
   const gaugeColor = getGaugeColor(percent);
@@ -71,11 +60,17 @@ export function SensorGaugeCard({ sensor }: { sensor: SensorGaugeItem }) {
               d="M30 125 A100 100 0 0 1 230 125"
               fill="none"
               stroke={gaugeColor}
+              className="sensor-gauge-fill"
               strokeWidth="24"
               strokeLinecap="round"
               strokeDasharray={arcLength}
-              strokeDashoffset={dashOffset}
-              style={{ filter: "drop-shadow(0px 0px 10px rgba(59,130,246,0.4))" }}
+              strokeDashoffset={arcLength}
+              style={
+                {
+                  filter: "drop-shadow(0px 0px 10px rgba(59,130,246,0.4))",
+                  "--gauge-target-offset": dashOffset
+                } as CSSProperties
+              }
             />
           </svg>
 
