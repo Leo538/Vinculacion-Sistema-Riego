@@ -106,3 +106,42 @@ html:not(.dark) .sensor-scroll::-webkit-scrollbar-thumb {
   background: #94a3b8;
   border-color: rgba(148, 163, 184, 0.35);
 }
+
+@keyframes sensor-gauge-fill-in {
+  from {
+    stroke-dashoffset: 314;
+  }
+  to {
+    stroke-dashoffset: var(--gauge-target-offset, 0);
+  }
+}
+
+.sensor-gauge-fill {
+  animation: sensor-gauge-fill-in 850ms ease-out forwards;
+}
+
+@keyframes sensor-bar-fill-in {
+  from {
+    width: 0%;
+  }
+  to {
+    width: var(--sensor-bar-target-width, 0%);
+  }
+}
+
+.sensor-bar-fill {
+  width: 0%;
+  animation: sensor-bar-fill-in 850ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sensor-gauge-fill {
+    animation: none;
+    stroke-dashoffset: var(--gauge-target-offset, 0);
+  }
+
+  .sensor-bar-fill {
+    animation: none;
+    width: var(--sensor-bar-target-width, 0%);
+  }
+}
