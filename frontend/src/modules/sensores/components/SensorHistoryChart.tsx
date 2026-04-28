@@ -5,7 +5,7 @@ import type { SensorHistorySeries } from "@/modules/sensores/types";
 import { Card } from "@/shared/components/ui/Card";
 
 const tickStyle = { fill: "#64748b", fontSize: 9 };
-const gridStyle = { stroke: "#334155", strokeOpacity: 0.45 };
+const gridStyle = { stroke: "#334155", strokeOpacity: 0.2 };
 
 function HistoryTooltip({
   active,
@@ -56,8 +56,8 @@ export function SensorHistoryChart({ series }: { series: SensorHistorySeries }) 
           <AreaChart data={series.data} margin={{ top: 4, right: 2, left: -10, bottom: 0 }}>
             <defs>
               <linearGradient id={`fill-${series.id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={series.color} stopOpacity={0.25} />
-                <stop offset="100%" stopColor={series.color} stopOpacity={0.01} />
+                <stop offset="0%" stopColor={series.color} stopOpacity={0.26} />
+                <stop offset="100%" stopColor={series.color} stopOpacity={0.02} />
               </linearGradient>
             </defs>
             <CartesianGrid {...gridStyle} vertical={false} />
@@ -67,14 +67,45 @@ export function SensorHistoryChart({ series }: { series: SensorHistorySeries }) 
               content={<HistoryTooltip unit={series.unit} metricLabel={series.valueLabel} color={series.color} />}
               cursor={{ stroke: "#e2e8f0", strokeOpacity: 0.75, strokeWidth: 1.1 }}
             />
-            <Area type="monotone" dataKey="value" stroke="transparent" fill={`url(#fill-${series.id})`} />
+            <Area type="monotone" dataKey="value" stroke="transparent" fill={`url(#fill-${series.id})`} fillOpacity={1} />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke={series.color}
+              strokeWidth={2.2}
+              strokeOpacity={1}
+              fill="none"
+              dot={false}
+              activeDot={false}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                filter: "drop-shadow(0px 0px 4px rgba(56,189,248,0.55)) drop-shadow(0px 0px 10px rgba(56,189,248,0.32))"
+              }}
+            />
             <Line
               type="monotone"
               dataKey="value"
               stroke={series.color}
               strokeWidth={3}
-              dot={false}
-              style={{ filter: "drop-shadow(0px 0px 6px rgba(56,189,248,0.4))" }}
+              strokeOpacity={1}
+              dot={{
+                r: 2.8,
+                fill: "#93c5fd",
+                stroke: "#3b82f6",
+                strokeWidth: 0.8
+              }}
+              activeDot={{
+                r: 4,
+                strokeWidth: 0.9,
+                stroke: "#ffffff",
+                fill: series.color
+              }}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                filter: "drop-shadow(0px 0px 2px rgba(255,255,255,0.4)) drop-shadow(0px 0px 8px rgba(56,189,248,0.45))"
+              }}
             />
           </AreaChart>
         </ResponsiveContainer>
