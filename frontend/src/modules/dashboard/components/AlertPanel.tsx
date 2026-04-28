@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Bell } from "lucide-react";
 import type { AlertItem } from "@/modules/dashboard/types";
 import { Card } from "@/shared/components/ui/Card";
@@ -25,24 +26,24 @@ export function AlertPanel({ alerts }: { alerts: AlertItem[] }) {
         {visible.map((alert) => (
           <li
             key={alert.id}
-            className="rounded-xl border border-slate-700/40 bg-[#0f1b2d] px-2 py-1.5 transition hover:border-slate-600/50"
+            className="rounded-xl border border-[#CBDDF5] bg-[#EEF5FF] px-2 py-1.5 transition hover:border-sky-300/70 dark:border-slate-700/40 dark:bg-[#0f1b2d] dark:hover:border-slate-600/50"
           >
-            <p className="flex items-start gap-1.5 text-[10px] font-semibold text-slate-100">
+            <p className="flex items-start gap-1.5 text-[10px] font-semibold text-slate-900 dark:text-slate-100">
               <span
                 className={`mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full shadow-[0_0_6px_currentColor] ${severityDotClass[alert.severity]}`}
               />
               {alert.title}
             </p>
-            <p className="ml-2 line-clamp-2 text-[9px] text-slate-500">{alert.detail}</p>
+            <p className="ml-2 line-clamp-2 text-[9px] text-slate-500 dark:text-slate-500">{alert.detail}</p>
           </li>
         ))}
       </DashboardScrollArea>
-      <button
-        type="button"
+      <Link
+        href="/alertas"
         className="mt-2 shrink-0 text-left text-[10px] font-medium text-sky-400 transition hover:text-sky-300 hover:drop-shadow-[0_0_6px_rgba(56,189,248,0.4)]"
       >
         Ver todas las alertas
-      </button>
+      </Link>
     </Card>
   );
 }

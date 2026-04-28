@@ -33,9 +33,9 @@ export function AlertasPageView() {
 
   return (
     <AppShell mainClassName="overflow-y-auto overflow-x-hidden">
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-700/40 pb-2">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#CBDDF5] pb-2 dark:border-slate-700/40">
         <div className="min-w-0">
-          <h1 className="text-sm font-semibold text-white">Alertas</h1>
+          <h1 className="text-sm font-semibold text-slate-900 dark:text-white">Alertas</h1>
           <p className="text-[10px] text-slate-500">Historial y avisos del sistema de monitoreo</p>
         </div>
         <div className="flex min-w-0 items-center gap-2 text-[10px] text-slate-400">
@@ -50,7 +50,7 @@ export function AlertasPageView() {
       <div className="grid min-h-0 max-w-3xl shrink-0 gap-3">
         <AlertPanel alerts={dashboardData.alerts} />
         <Card padding="sm" className="text-[11px] text-slate-400">
-          <p className="font-medium text-slate-200">Nota</p>
+          <p className="font-medium text-slate-800 dark:text-slate-200">Nota</p>
           <p className="mt-1 leading-relaxed">
             Las alertas se cargan con los mismos datos que el dashboard (mock / Open-Meteo) hasta integrar API real.
           </p>

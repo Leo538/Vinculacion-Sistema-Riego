@@ -26,17 +26,17 @@ export function SensorPanel({ sensors }: { sensors: SensorReading[] }) {
           return (
             <li
               key={sensor.id}
-              className="flex items-center justify-between gap-2 rounded-xl border border-slate-700/40 bg-[#0f1b2d] px-2.5 py-1.5 transition hover:border-slate-600/50"
+              className="flex items-center justify-between gap-2 rounded-xl border border-[#CBDDF5] bg-[#EEF5FF] px-2.5 py-1.5 transition hover:border-sky-300/70 dark:border-slate-700/40 dark:bg-[#0f1b2d] dark:hover:border-slate-600/50"
             >
               <div className="flex min-w-0 items-center gap-2">
                 <IconBox icon={Icon} className="size-8" iconSizeClassName="size-3.5" rounded="full" />
                 <div className="min-w-0">
-                  <p className="truncate text-[11px] font-medium text-slate-200">{sensor.name}</p>
+                  <p className="truncate text-[11px] font-medium text-slate-800 dark:text-slate-200">{sensor.name}</p>
                   <p className="text-[9px] text-slate-600">{sensor.updatedAt}</p>
                 </div>
               </div>
               <div className="shrink-0 text-right">
-                <p className="text-[11px] font-semibold text-slate-100">{sensor.value}</p>
+                <p className="text-[11px] font-semibold text-slate-900 dark:text-slate-100">{sensor.value}</p>
                 <span
                   className={`mt-0.5 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-medium ${
                     online

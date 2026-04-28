@@ -1,26 +1,38 @@
-export type SensorIconKey = "droplets" | "thermometer" | "waves" | "activity" | "wifi";
+export type SensorIconKey =
+  | "droplets"
+  | "thermometer"
+  | "waves"
+  | "activity"
+  | "cloud-rain"
+  | "sun"
+  | "gauge";
 
-/** Iconos de la lista detallada (sin wifi: solo tarjetas resumen) */
-export type SensorListIconKey = "droplets" | "thermometer" | "waves" | "activity";
+export type SensorLevel = "low" | "normal" | "high" | "critical";
 
-export interface SensorSummaryItem {
+export interface SensorGaugeItem {
   id: string;
   label: string;
-  value: string;
   iconKey: SensorIconKey;
-  caption: string;
-  captionClassName?: string;
+  value: number;
+  displayValue: string;
+  unit: string;
+  min: number;
+  max: number;
+  warningMin?: number;
+  warningMax?: number;
+  criticalMin?: number;
+  criticalMax?: number;
 }
 
-export interface SensorDetailRow {
+export interface SensorBarIndicatorItem {
   id: string;
-  name: string;
-  value: string;
-  online: boolean;
-  statusLabel: string;
-  lastReading: string;
-  zone: string;
-  iconKey: SensorListIconKey;
+  label: string;
+  iconKey: SensorIconKey;
+  value: number;
+  displayValue: string;
+  min: number;
+  max: number;
+  level: SensorLevel;
 }
 
 export interface SensorSeriesPoint {
@@ -28,9 +40,27 @@ export interface SensorSeriesPoint {
   value: number;
 }
 
+export interface SensorHistorySeries {
+  id: string;
+  title: string;
+  subtitle: string;
+  valueLabel: string;
+  unit: string;
+  color: string;
+  data: SensorSeriesPoint[];
+}
+
 export interface SensorTechnicalStats {
   activeSensors: number;
   disconnectedSensors: number;
   readingsToday: number;
   updateFrequency: string;
+}
+
+export interface SensorCompactStatusItem {
+  id: string;
+  name: string;
+  iconKey: SensorIconKey;
+  value: string;
+  online: boolean;
 }

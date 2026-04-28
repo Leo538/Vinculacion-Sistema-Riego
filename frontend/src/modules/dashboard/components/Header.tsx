@@ -14,9 +14,9 @@ export function Header() {
   }, []);
 
   return (
-    <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-700/40 pb-2">
+    <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#CBDDF5] pb-2 dark:border-slate-700/40">
       <div className="min-w-0">
-        <h1 className="text-sm font-semibold text-white">Dashboard</h1>
+        <h1 className="text-sm font-semibold text-slate-900 dark:text-white">Dashboard</h1>
         <p className="text-[10px] text-slate-500">Monitoreo de riego inteligente con sensores IoT</p>
       </div>
       <div className="flex min-w-0 items-center gap-2 text-[10px] text-slate-400">

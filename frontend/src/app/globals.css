@@ -3,6 +3,17 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
+  --bg-main: #eef5ff;
+  --bg-aux-1: rgba(37, 99, 235, 0.08);
+  --bg-aux-2: rgba(14, 165, 233, 0.06);
+  --text-main: #0f172a;
+  --panel-bg: #f8fbff;
+  --panel-border: #cbddf5;
+  --panel-shadow: 0 8px 22px rgba(30, 64, 175, 0.1);
+}
+
+.dark {
   color-scheme: dark;
   --bg-main: #0b1522;
   --bg-aux-1: rgba(59, 130, 246, 0.1);
@@ -11,17 +22,6 @@
   --panel-bg: #111d2c;
   --panel-border: rgba(100, 116, 139, 0.4);
   --panel-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
-}
-
-[data-theme="light"] {
-  color-scheme: light;
-  --bg-main: #edf4ff;
-  --bg-aux-1: rgba(14, 116, 144, 0.08);
-  --bg-aux-2: rgba(37, 99, 235, 0.1);
-  --text-main: #0f172a;
-  --panel-bg: rgba(255, 255, 255, 0.92);
-  --panel-border: rgba(30, 64, 175, 0.14);
-  --panel-shadow: 0 8px 24px rgba(30, 64, 175, 0.12);
 }
 
 html,
@@ -44,25 +44,20 @@ body {
   box-shadow: var(--panel-shadow);
 }
 
-.dashboard-shell[data-theme="dark"],
-.dashboard-shell:not([data-theme]) {
+.dashboard-shell.dark,
+.dark .dashboard-shell {
   background-color: #0b1522;
 }
 
-[data-theme="light"] .dashboard-card {
-  background: rgba(255, 255, 255, 0.94);
-  border-color: rgba(30, 64, 175, 0.14);
-}
-
-[data-theme="light"] .text-white,
-[data-theme="light"] .text-slate-100,
-[data-theme="light"] .text-slate-50 {
+html:not(.dark) .text-white,
+html:not(.dark) .text-slate-100,
+html:not(.dark) .text-slate-50 {
   color: #0f172a !important;
 }
 
-[data-theme="light"] .text-slate-300,
-[data-theme="light"] .text-slate-400 {
-  color: #334155 !important;
+html:not(.dark) .text-slate-300,
+html:not(.dark) .text-slate-400 {
+  color: #64748b !important;
 }
 
 /* Scroll reutilizable (Sensores, Alertas, nav…) — track oscuro, thumb píldora gris */
@@ -70,6 +65,11 @@ body {
 .sensor-scroll {
   scrollbar-width: thin;
   scrollbar-color: #9ca3af rgba(10, 14, 20, 0.95);
+}
+
+html:not(.dark) .dashboard-scroll,
+html:not(.dark) .sensor-scroll {
+  scrollbar-color: #94a3b8 rgba(203, 221, 245, 0.8);
 }
 
 .dashboard-scroll::-webkit-scrollbar,
@@ -94,4 +94,15 @@ body {
 .dashboard-scroll::-webkit-scrollbar-thumb:hover,
 .sensor-scroll::-webkit-scrollbar-thumb:hover {
   background: #cbd5e1;
+}
+
+html:not(.dark) .dashboard-scroll::-webkit-scrollbar-track,
+html:not(.dark) .sensor-scroll::-webkit-scrollbar-track {
+  background: rgba(203, 221, 245, 0.8);
+}
+
+html:not(.dark) .dashboard-scroll::-webkit-scrollbar-thumb,
+html:not(.dark) .sensor-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.35);
 }

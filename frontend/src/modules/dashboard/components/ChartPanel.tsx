@@ -1,3 +1,6 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import type { SoilHumidityPoint } from "@/modules/dashboard/types";
 import { Card } from "@/shared/components/ui/Card";
 
@@ -30,6 +33,10 @@ export function ChartPanel({ title, subtitle, data }: ChartPanelProps) {
     const y = padY + innerH - ((point.value - minV) / range) * innerH;
     return { x, y, label: point.hour, value: point.value, i };
   });
+  const [hoverIndex, setHoverIndex] = useState<number>(0);
+  const [isHovering, setIsHovering] = useState(false);
+  const safeHoverIndex = Math.min(Math.max(hoverIndex, 0), linePoints.length - 1);
+  const hoveredPoint = isHovering ? linePoints[safeHoverIndex] : null;
 
   const pathD = linePoints
     .map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`))
@@ -42,6 +49,12 @@ export function ChartPanel({ title, subtitle, data }: ChartPanelProps) {
     const gy = padY + t * innerH;
     return <line key={t} x1={padX} y1={gy} x2={w - padX} y2={gy} stroke="rgba(148,163,184,0.08)" strokeWidth={0.35} />;
   });
+  const tooltipXPercent = ((hoveredPoint?.x ?? padX) / w) * 100;
+  const tooltipAlignClass = tooltipXPercent > 66 ? "-translate-x-full" : "";
+  const tooltipStyle = useMemo(
+    () => ({ left: `clamp(0%, ${tooltipXPercent}%, 100%)` }),
+    [tooltipXPercent]
+  );
 
   return (
     <Card className="flex h-full min-h-0 flex-col overflow-hidden" padding="sm">
@@ -56,13 +69,12 @@ export function ChartPanel({ title, subtitle, data }: ChartPanelProps) {
             <span key={`${t}-${idx}`}>{t}</span>
           ))}
         </div>
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="relative flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1">
             <svg
               viewBox={`0 0 ${w} ${h}`}
               className="h-full min-h-[100px] w-full"
               preserveAspectRatio="none"
-              aria-hidden
             >
               {gridLines}
               <defs>
@@ -95,8 +107,55 @@ export function ChartPanel({ title, subtitle, data }: ChartPanelProps) {
                   className="drop-shadow-[0_0_4px_rgba(56,189,248,0.9)]"
                 />
               ))}
+              {hoveredPoint ? (
+                <>
+                  <line
+                    x1={hoveredPoint.x}
+                    y1={padY}
+                    x2={hoveredPoint.x}
+                    y2={h - padY}
+                    stroke="rgba(226,232,240,0.9)"
+                    strokeWidth={0.35}
+                  />
+                  <circle
+                    cx={hoveredPoint.x}
+                    cy={hoveredPoint.y}
+                    r={2}
+                    fill="#ffffff"
+                    stroke="#38bdf8"
+                    strokeWidth={0.8}
+                  />
+                </>
+              ) : null}
+              <rect
+                x={padX}
+                y={padY}
+                width={innerW}
+                height={innerH}
+                fill="transparent"
+                onMouseEnter={() => setIsHovering(true)}
+                onMouseMove={(e) => {
+                  const bounds = (e.currentTarget as SVGRectElement).getBoundingClientRect();
+                  const relX = Math.min(Math.max(0, e.clientX - bounds.left), bounds.width);
+                  const idx = Math.round((relX / bounds.width) * (linePoints.length - 1));
+                  setHoverIndex(idx);
+                }}
+                onMouseLeave={() => setIsHovering(false)}
+              />
             </svg>
           </div>
+          {hoveredPoint ? (
+            <div
+              className={`pointer-events-none absolute top-2 z-10 min-w-[115px] rounded-xl border border-slate-600/70 bg-[#0f1a2a]/95 px-2 py-1.5 shadow-lg shadow-black/35 ${tooltipAlignClass}`}
+              style={tooltipStyle}
+            >
+              <p className="text-[11px] font-medium text-slate-300">{hoveredPoint.label}</p>
+              <p className="text-lg font-semibold leading-tight" style={{ color: "#ffffff" }}>
+                {hoveredPoint.value} %
+              </p>
+              <p className="text-xs font-semibold text-sky-400">Humedad</p>
+            </div>
+          ) : null}
           <div className="mt-1 grid shrink-0" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}>
             {data.map((point, i) => (
               <span key={`${point.hour}-${i}`} className="text-center text-[8px] leading-none text-slate-600">

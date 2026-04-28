@@ -33,9 +33,9 @@ export function RiegoPageView() {
 
   return (
     <AppShell mainClassName="overflow-y-auto overflow-x-hidden">
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-700/40 pb-2">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#CBDDF5] pb-2 dark:border-slate-700/40">
         <div className="min-w-0">
-          <h1 className="text-sm font-semibold text-white">Riego</h1>
+          <h1 className="text-sm font-semibold text-slate-900 dark:text-white">Riego</h1>
           <p className="text-[10px] text-slate-500">Recomendaciones y programación del sistema de riego</p>
         </div>
         <div className="flex min-w-0 items-center gap-2 text-[10px] text-slate-400">
@@ -50,7 +50,7 @@ export function RiegoPageView() {
       <div className="grid max-w-3xl shrink-0 gap-3">
         <IrrigationRecommendation irrigation={dashboardData.irrigation} />
         <Card padding="sm" className="text-[11px] text-slate-400">
-          <p className="font-medium text-slate-200">Nota</p>
+          <p className="font-medium text-slate-800 dark:text-slate-200">Nota</p>
           <p className="mt-1 leading-relaxed">
             Vista dedicada a riego. Los datos siguen siendo de demostración / Open-Meteo hasta conectar el backend.
           </p>
