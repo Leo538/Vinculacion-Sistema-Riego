@@ -1,0 +1,68 @@
+import { Activity, CloudRain, Droplets, Gauge, Sun, Thermometer, Waves } from "lucide-react";
+import type { SensorBarIndicatorItem } from "@/modules/sensores/types";
+import { Card } from "@/shared/components/ui/Card";
+import { IconBox } from "@/shared/components/ui/IconBox";
+
+const iconMap = {
+  droplets: Droplets,
+  thermometer: Thermometer,
+  waves: Waves,
+  activity: Activity,
+  "cloud-rain": CloudRain,
+  sun: Sun,
+  gauge: Gauge
+} as const;
+
+const levelTone = {
+  low: {
+    label: "Bajo",
+    text: "text-amber-300",
+    bar: "from-amber-400 to-amber-300"
+  },
+  normal: {
+    label: "Normal",
+    text: "text-emerald-400",
+    bar: "from-emerald-500 to-emerald-300"
+  },
+  high: {
+    label: "Alto",
+    text: "text-amber-300",
+    bar: "from-amber-500 to-yellow-300"
+  },
+  critical: {
+    label: "Crítico",
+    text: "text-rose-300",
+    bar: "from-rose-500 to-orange-400"
+  }
+} as const;
+
+export function SensorBarIndicator({ item }: { item: SensorBarIndicatorItem }) {
+  const Icon = iconMap[item.iconKey];
+  const pct = Math.max(0, Math.min(100, ((item.value - item.min) / (item.max - item.min || 1)) * 100));
+  const tone = levelTone[item.level];
+
+  return (
+    <Card padding="sm" className="flex h-full min-h-[7.25rem] flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-[11px] font-semibold text-slate-800 dark:text-slate-200">{item.label}</p>
+          <p className={`text-[10px] font-medium ${tone.text}`}>{tone.label}</p>
+        </div>
+        <IconBox icon={Icon} className="size-8" iconSizeClassName="size-3.5" rounded="full" />
+      </div>
+
+      <div>
+        <div className="mb-1 flex items-baseline justify-between gap-2">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{item.displayValue}</p>
+          <p className="text-[10px] text-slate-500">{Math.round(pct)}%</p>
+        </div>
+        <div className="h-2.5 rounded-full bg-slate-300/75 dark:bg-slate-800/80">
+          <div
+            className={`h-full rounded-full bg-gradient-to-r ${tone.bar} shadow-[0_0_10px_rgba(56,189,248,0.25)]`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+    </Card>
+  );
+}
