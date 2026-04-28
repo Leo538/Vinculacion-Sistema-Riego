@@ -1,17 +1,8 @@
-import { Activity, CloudRain, Droplets, Gauge, Sun, Thermometer, Waves } from "lucide-react";
 import type { SensorBarIndicatorItem } from "@/modules/sensores/types";
+import { sensorIconMap } from "@/modules/sensores/components/sensorIconMap";
 import { Card } from "@/shared/components/ui/Card";
 import { IconBox } from "@/shared/components/ui/IconBox";
-
-const iconMap = {
-  droplets: Droplets,
-  thermometer: Thermometer,
-  waves: Waves,
-  activity: Activity,
-  "cloud-rain": CloudRain,
-  sun: Sun,
-  gauge: Gauge
-} as const;
+import type { CSSProperties } from "react";
 
 const levelTone = {
   low: {
@@ -37,7 +28,7 @@ const levelTone = {
 } as const;
 
 export function SensorBarIndicator({ item }: { item: SensorBarIndicatorItem }) {
-  const Icon = iconMap[item.iconKey];
+  const Icon = sensorIconMap[item.iconKey];
   const pct = Math.max(0, Math.min(100, ((item.value - item.min) / (item.max - item.min || 1)) * 100));
   const tone = levelTone[item.level];
 
@@ -58,8 +49,8 @@ export function SensorBarIndicator({ item }: { item: SensorBarIndicatorItem }) {
         </div>
         <div className="h-2.5 rounded-full bg-slate-300/75 dark:bg-slate-800/80">
           <div
-            className={`h-full rounded-full bg-gradient-to-r ${tone.bar} shadow-[0_0_10px_rgba(56,189,248,0.25)]`}
-            style={{ width: `${pct}%` }}
+            className={`sensor-bar-fill h-full rounded-full bg-gradient-to-r ${tone.bar} shadow-[0_0_10px_rgba(56,189,248,0.25)]`}
+            style={{ "--sensor-bar-target-width": `${pct}%` } as CSSProperties}
           />
         </div>
       </div>

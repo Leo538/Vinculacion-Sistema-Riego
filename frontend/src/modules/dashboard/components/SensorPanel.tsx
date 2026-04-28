@@ -18,7 +18,7 @@ const iconById: Record<string, typeof Droplets> = {
 export function SensorPanel({ sensors }: { sensors: SensorReading[] }) {
   return (
     <Card className="flex h-full max-h-full min-h-0 flex-col overflow-hidden" padding="sm">
-      <h2 className="mb-2 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Sensores</h2>
+      <h2 className="mb-2 shrink-0 text-[10px] font-bold uppercase tracking-wide text-white">Sensores</h2>
       <DashboardScrollArea as="ul" className="space-y-1.5">
         {sensors.map((sensor) => {
           const Icon = iconById[sensor.id] ?? Droplets;

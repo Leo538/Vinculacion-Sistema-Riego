@@ -9,7 +9,7 @@ export function IrrigationRecommendation({ irrigation }: { irrigation: Irrigatio
 
   return (
     <Card className="flex shrink-0 flex-col overflow-hidden" padding="sm">
-      <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+      <h2 className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white">
         Recomendación de riego
       </h2>
       <div className="flex gap-2.5">

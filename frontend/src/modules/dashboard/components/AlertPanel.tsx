@@ -20,7 +20,7 @@ export function AlertPanel({ alerts }: { alerts: AlertItem[] }) {
     <Card className="flex min-h-0 flex-1 flex-col overflow-hidden" padding="sm">
       <div className="mb-2 flex shrink-0 items-center gap-2">
         <IconBox icon={Bell} className="size-7" iconSizeClassName="size-3" variant="amber" rounded="full" />
-        <h2 className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Alertas</h2>
+        <h2 className="text-[10px] font-bold uppercase tracking-wide text-white">Alertas</h2>
       </div>
       <DashboardScrollArea as="ul" className="space-y-1.5">
         {visible.map((alert) => (

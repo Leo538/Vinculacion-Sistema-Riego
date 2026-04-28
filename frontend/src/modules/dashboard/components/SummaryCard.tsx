@@ -30,7 +30,7 @@ export function SummaryCard({ metric }: { metric: SummaryMetric }) {
       className="flex h-full min-h-[5.25rem] flex-col justify-between gap-1 overflow-hidden"
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="line-clamp-2 text-[10px] font-medium leading-tight text-slate-400">{metric.label}</span>
+        <span className="line-clamp-2 text-[10px] font-bold leading-tight text-slate-300">{metric.label}</span>
         <IconBox icon={Icon} className="size-8" iconSizeClassName="size-3.5" rounded="full" />
       </div>
       <p className="truncate text-lg font-semibold leading-tight tracking-tight text-white">{metric.value}</p>

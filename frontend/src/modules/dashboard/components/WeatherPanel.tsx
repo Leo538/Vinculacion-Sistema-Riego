@@ -13,13 +13,13 @@ export function WeatherPanel({ weather }: { weather: CurrentWeather }) {
 
   return (
     <Card className="flex h-full min-h-0 flex-col overflow-hidden" padding="sm">
-      <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Clima actual</h2>
+      <h2 className="mb-2 shrink-0 text-sm font-semibold uppercase tracking-wide text-white">Clima actual</h2>
       <div className="flex min-h-0 flex-1 items-center gap-3">
         <WeatherCurrentHeroIcon hero={hero} />
         <div className="min-w-0">
           <p className="text-2xl font-semibold leading-none text-white">{weather.temperature.toFixed(1)} °C</p>
-          <p className="mt-1 truncate text-xs text-slate-300">{weather.condition}</p>
-          <p className="truncate text-[10px] text-slate-500">{location}</p>
+          <p className="mt-1 truncate text-sm font-semibold text-white">{weather.condition}</p>
+          <p className="truncate text-xs font-medium text-slate-300">{location}</p>
         </div>
       </div>
       <div className="mt-3 grid grid-cols-4 gap-1 border-t border-slate-700/40 pt-2">
@@ -36,8 +36,8 @@ function FooterStat({ icon: Icon, label, value }: { icon: LucideIcon; label: str
   return (
     <div className="flex flex-col items-center gap-1 text-center">
       <IconBox icon={Icon} className="size-7" iconSizeClassName="size-3" rounded="full" />
-      <span className="text-[8px] font-medium uppercase tracking-wide text-slate-500">{label}</span>
-      <span className="truncate px-0.5 text-[9px] font-medium text-slate-200">{value}</span>
+      <span className="text-[9px] font-semibold uppercase tracking-wide text-white">{label}</span>
+      <span className="truncate px-0.5 text-[10px] font-semibold text-white">{value}</span>
     </div>
   );
 }

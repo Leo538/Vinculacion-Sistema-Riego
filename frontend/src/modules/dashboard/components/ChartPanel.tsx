@@ -59,7 +59,7 @@ export function ChartPanel({ title, subtitle, data }: ChartPanelProps) {
   return (
     <Card className="flex h-full min-h-0 flex-col overflow-hidden" padding="sm">
       <div className="mb-2 shrink-0">
-        <h2 className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
+        <h2 className="text-[10px] font-bold uppercase tracking-wide text-white">{title}</h2>
         {subtitle ? <p className="truncate text-[10px] text-slate-600">{subtitle}</p> : null}
       </div>
 
