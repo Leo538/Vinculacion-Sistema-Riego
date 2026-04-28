@@ -1,5 +1,6 @@
 import { Bell } from "lucide-react";
 import { Card } from "@/components/ui/Card";
+import { DashboardScrollArea } from "@/components/ui/DashboardScrollArea";
 import { IconBox } from "@/components/ui/IconBox";
 import type { AlertItem } from "@/types/dashboard.types";
 
@@ -20,7 +21,7 @@ export function AlertPanel({ alerts }: { alerts: AlertItem[] }) {
         <IconBox icon={Bell} className="size-7" iconSizeClassName="size-3" variant="amber" rounded="full" />
         <h2 className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Alertas</h2>
       </div>
-      <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-0.5">
+      <DashboardScrollArea as="ul" className="space-y-1.5">
         {visible.map((alert) => (
           <li
             key={alert.id}
@@ -35,7 +36,7 @@ export function AlertPanel({ alerts }: { alerts: AlertItem[] }) {
             <p className="ml-2 line-clamp-2 text-[9px] text-slate-500">{alert.detail}</p>
           </li>
         ))}
-      </ul>
+      </DashboardScrollArea>
       <button
         type="button"
         className="mt-2 shrink-0 text-left text-[10px] font-medium text-sky-400 transition hover:text-sky-300 hover:drop-shadow-[0_0_6px_rgba(56,189,248,0.4)]"

@@ -65,26 +65,33 @@ body {
   color: #334155 !important;
 }
 
-/* Scroll fino estilo panel sensores (referencia) */
+/* Scroll reutilizable (Sensores, Alertas, nav…) — track oscuro, thumb píldora gris */
+.dashboard-scroll,
 .sensor-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.45) rgba(15, 23, 42, 0.85);
+  scrollbar-color: #9ca3af rgba(10, 14, 20, 0.95);
 }
 
+.dashboard-scroll::-webkit-scrollbar,
 .sensor-scroll::-webkit-scrollbar {
-  width: 6px;
+  width: 7px;
 }
 
+.dashboard-scroll::-webkit-scrollbar-track,
 .sensor-scroll::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.9);
+  background: rgba(10, 14, 20, 0.92);
   border-radius: 9999px;
+  margin: 2px 0;
 }
 
+.dashboard-scroll::-webkit-scrollbar-thumb,
 .sensor-scroll::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.45);
+  background: #9ca3af;
   border-radius: 9999px;
+  border: 1px solid rgba(10, 14, 20, 0.4);
 }
 
+.dashboard-scroll::-webkit-scrollbar-thumb:hover,
 .sensor-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.6);
+  background: #cbd5e1;
 }

@@ -11,6 +11,7 @@ import {
   Waves
 } from "lucide-react";
 import { IconBox } from "@/components/ui/IconBox";
+import { DashboardScrollArea } from "@/components/ui/DashboardScrollArea";
 
 const sidebarItems = [
   { label: "Resumen", icon: Home, active: true },
@@ -38,7 +39,7 @@ export function Sidebar({ theme, onThemeChange }: SidebarProps) {
         </div>
       </div>
 
-      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+      <DashboardScrollArea as="nav" className="flex flex-col gap-1">
         {sidebarItems.map(({ label, icon: Icon, active }) => (
           <button
             key={label}
@@ -53,7 +54,7 @@ export function Sidebar({ theme, onThemeChange }: SidebarProps) {
             <span className="truncate">{label}</span>
           </button>
         ))}
-      </nav>
+      </DashboardScrollArea>
 
       <div className="mt-auto shrink-0 rounded-xl border border-slate-700/40 bg-[#0f1b2d] p-1">
         <div className="grid grid-cols-2 gap-0.5 text-[11px] font-medium">
