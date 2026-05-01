@@ -1,39 +1,12 @@
-# IoT Weather Dashboard
+# Proyecto de vinculación — Sistema de riego inteligente (IoT)
 
-Monorepo: dashboard **Next.js**, backend **Spring Boot** (MQTT, MongoDB, WebSocket/STOMP), broker **Mosquitto**, firmware **ESP32** (`esp32_iot/`).
-
----
-
-## Cómo iniciar el proyecto
-
-### Opción recomendada: Docker Compose (stack completo)
-
-Desde la raíz del repositorio:
-
-```bash
-docker compose up --build
-```
-
-Eso levanta:
-
-| Servicio       | Puerto | Descripción                          |
-|----------------|--------|--------------------------------------|
-| Backend API    | 8080   | REST, Swagger UI, WebSocket (`/ws`)  |
-| Mosquitto      | 1883   | MQTT                                 |
-| Mosquitto WS   | 9001   | WebSocket MQTT (opcional)            |
-| MongoDB        | 27017  | Base de datos                        |
-| Mongo Express  | 8081   | UI web de Mongo (solo desarrollo)    |
-
-- API REST y documentación OpenAPI: `http://localhost:8080/swagger-ui.html` (o la ruta que exponga Springdoc en tu versión).
-- Detalle de endpoints y WebSocket: [`backend/API_REST_WEBSOCKET.md`](backend/API_REST_WEBSOCKET.md).
-
-Variables ya definidas en `docker-compose.yml`: `MQTT_BROKER_URL`, `SPRING_MONGODB_URI` para el contenedor del backend.
+Dashboard y API para monitorear sensores agrícolas, clima de referencia (Open-Meteo) y recomendaciones de riego. Incluye frontend **Next.js**, backend **Spring Boot** (MQTT, MongoDB, WebSocket), broker **Mosquitto** y firmware de ejemplo **ESP32** (`esp32_iot/`).
 
 ---
 
-### Frontend en desarrollo (local)
+## Frontend (desarrollo)
 
-Con el backend (y Mongo + Mosquitto) ya accesibles según tu escenario:
+Desde la carpeta `frontend`:
 
 ```bash
 cd frontend
@@ -41,16 +14,45 @@ npm install
 npm run dev
 ```
 
-Por defecto Next.js sirve en **http://localhost:3000**.
+La app queda en **http://localhost:3000** (por defecto).
+
+Configura la URL del backend, por ejemplo en `frontend/.env.local`:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8080
+```
+
+Con el API y la base de datos levantados para que existan dispositivos y lecturas.
 
 ---
 
-### Backend sin Docker (solo si lo necesitas)
+## Stack completo con Docker
 
-1. **Java 21** (`java -version` debe mostrar 21). El proyecto no compila con versiones anteriores.
-2. MongoDB y Mosquitto corriendo (puedes levantar solo esos servicios con Docker o instalarlos en el sistema).
-3. Ajusta `backend/src/main/resources/application.properties` (URI de Mongo, `mqtt.broker.url`, etc.).
-4. En la carpeta `backend`:
+Desde la raíz del proyecto:
+
+```bash
+docker compose up --build
+```
+
+| Servicio       | Puerto | Descripción                          |
+|----------------|--------|--------------------------------------|
+| Backend API    | 8080   | REST, Swagger, WebSocket (`/ws`)     |
+| Mosquitto      | 1883   | MQTT                                 |
+| Mosquitto WS   | 9001   | WebSocket MQTT (opcional)            |
+| MongoDB        | 27017  | Base de datos                        |
+| Mongo Express  | 8081   | UI web de Mongo (desarrollo)         |
+
+- Swagger: `http://localhost:8080/swagger-ui.html` (o la ruta que use Springdoc en tu versión).
+- Más detalle: [`backend/API_REST_WEBSOCKET.md`](backend/API_REST_WEBSOCKET.md).
+
+---
+
+## Backend sin Docker (opcional)
+
+1. **Java 21** (`java -version`).
+2. MongoDB y Mosquitto en ejecución (o solo esos servicios vía Docker).
+3. Ajusta `backend/src/main/resources/application.properties` (Mongo, `mqtt.broker.url`, etc.).
+4. En `backend`:
 
 ```bash
 ./mvnw.cmd package   # Windows
@@ -60,21 +62,53 @@ java -jar target/*SNAPSHOT.jar
 
 ---
 
-## Git: `.gitignore` y `.gitattributes` (no están duplicados)
+## Estructura del repositorio
 
-- **`.gitignore`**: indica qué archivos y carpetas **no** deben versionarse (por ejemplo `backend/target/`, datos de Mosquitto, `.env`, artefactos de IDE).
-- **`.gitattributes`**: no ignora nada; define **cómo** Git trata los archivos (fines de línea LF/CRLF, archivos binarios como `.jar`).
+| Ruta | Rol |
+|------|-----|
+| `frontend/` | Dashboard Next.js (sensores, clima, alertas, riego, Open-Meteo). |
+| `backend/` | API Spring Boot: lecturas MQTT → Mongo, REST `/api/v1/...`, WebSocket. |
+| `esp32_iot/` | Sketch de ejemplo para publicar lecturas por MQTT. |
+| `mosquitto/` | Configuración y logs del broker MQTT. |
+| `mongo-init/` | Scripts de inicialización / seed de MongoDB. |
 
-Conviven sin solaparse: uno filtra qué entra al repo; el otro normaliza el formato de lo que sí se versiona.
+### Estructura de carpetas (resumen)
 
----
+```
+iot-weather-dashboard/
+├── docker-compose.yml          # Mongo, Mosquitto, backend, mongo-express
+├── README.md
+│
+├── frontend/                   # Next.js 14 (App Router)
+│   ├── package.json
+│   └── src/
+│       ├── app/                # Rutas: /, /dashboard, /sensores, /riego, /alertas
+│       ├── lib/api/            # Cliente HTTP (devices, readings, tipos)
+│       ├── modules/
+│       │   ├── alertas/
+│       │   ├── dashboard/      # Vistas Open-Meteo, IoT, alertas derivadas
+│       │   ├── riego/
+│       │   └── sensores/
+│       └── shared/             # Layout, UI, tema, utilidades compartidas
+│
+├── backend/                    # Spring Boot
+│   ├── Dockerfile
+│   ├── pom.xml
+│   ├── API_REST_WEBSOCKET.md
+│   └── src/
+│       ├── main/java/com/uta/iot_backend/
+│       │   ├── config/         # MQTT, Web, CORS, etc.
+│       │   └── sensor/         # controladores REST, modelo, repos, MQTT
+│       ├── main/resources/     # application.properties
+│       └── test/
+│
+├── esp32_iot/                  # Firmware ESP32 (.ino + módulos C++)
+├── mongo-init/
+│   └── *.js                     # Seeds / init Mongo
+└── mosquitto/
+    ├── config/mosquitto.conf
+    ├── data/
+    └── log/
+```
 
-## Estructura rápida
-
-| Ruta        | Contenido                          |
-|-------------|------------------------------------|
-| `frontend/` | Aplicación Next.js                 |
-| `backend/`  | API Spring Boot                    |
-| `esp32_iot/`| Firmware ESP32                     |
-| `mosquitto/`| Configuración del broker           |
-| `mongo-init/`| Scripts de inicialización Mongo   |
+(No se listan `node_modules`, `target/`, `.next` ni otros generados; suelen estar en `.gitignore`.)
