@@ -1,51 +1,89 @@
-# Dependencias
-node_modules/
-**/node_modules/
+# Maven - Backend
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+backend/pom.xml.tag
+backend/pom.xml.releaseBackup
+backend/pom.xml.versionsBackup
+backend/pom.xml.next
+backend/release.properties
+backend/dependency-reduced-pom.xml
+backend/buildNumber.properties
+backend/.mvn/timing.properties
 
-# Next.js / frontend
+# Build output (Gradle-style; Maven usa backend/target/)
+backend/build/
+
+# Node / Next.js (dependencias y salida de build; no versionar)
+node_modules/
+frontend/node_modules/
 frontend/.next/
 frontend/out/
-frontend/.turbo/
-*.tsbuildinfo
-
-# Build y artefactos
+.next/
+out/
 dist/
-build/
 
-# Entornos y secretos
+# IDE - Spring Tools Suite (STS)
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+sts4-cache/
+
+# IDE - IntelliJ IDEA
+.idea/
+backend/.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# IDE - NetBeans
+nbproject/
+backend/nbproject/
+
+# IDE - VS Code
+.vscode/
+backend/.vscode/
+*.code-workspace
+
+# IDE - Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# IDE - Other
+*.swp
+*.swo
+*~
+
+# Environment variables
 .env
-.env.*
-!.env.example
+.env.local
+.env.*.local
+
+# Mosquitto - Runtime data and logs
+mosquitto/data/
+mosquitto/log/
+mosquitto/*.log
 
 # Logs
+logs/
 *.log
+*.log.*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
 
-# Python (backend)
-__pycache__/
-*.py[cod]
-*$py.class
-.Python
-venv/
-.venv/
-*.egg-info/
-.eggs/
-
-# Tests / cobertura
-coverage/
-.nyc_output/
-
-# OS
+# OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-Desktop.ini
 
-# IDE
-.idea/
-*.swp
-*.swo
-
-
+# Documentation
+HELP.md

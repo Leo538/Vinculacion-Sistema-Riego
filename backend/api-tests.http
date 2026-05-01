@@ -1,0 +1,88 @@
+@baseUrl = http://localhost:8080/api/v1
+@deviceId = esp32_01
+@sensorId = TMP_INT
+@type = temperature
+
+### ============================================================================
+### 1. LECTURAS GENERALES
+### ============================================================================
+
+### Obtener todas las lecturas paginadas (10 por página)
+GET {{baseUrl}}/readings?page=0&size=10
+Accept: application/json
+
+### 
+
+### ============================================================================
+### 2. ESTADO ACTUAL (LATEST)
+### ============================================================================
+
+### Obtener la última lectura de cada sensor para un dispositivo (Cards del Dashboard)
+GET {{baseUrl}}/readings/latest?deviceId={{deviceId}}
+Accept: application/json
+
+###
+
+### ============================================================================
+### 3. HISTÓRICO Y FILTROS (HISTORY)
+### ============================================================================
+
+### Histórico de un dispositivo específico (sin filtros de sensor)
+GET {{baseUrl}}/readings/history?deviceId={{deviceId}}&size=50
+Accept: application/json
+
+###
+
+### Histórico de un dispositivo + tipo de sensor (Ej: solo temperatura)
+GET {{baseUrl}}/readings/history?deviceId={{deviceId}}&type={{type}}
+Accept: application/json
+
+###
+
+### Histórico de un dispositivo + sensor específico (Ej: solo TMP_INT de esp32_01)
+GET {{baseUrl}}/readings/history?deviceId={{deviceId}}&sensorId={{sensorId}}
+Accept: application/json
+
+###
+
+### Histórico cross-device: Un sensor específico en TODOS los dispositivos
+GET {{baseUrl}}/readings/history?sensorId={{sensorId}}
+Accept: application/json
+
+###
+
+### Histórico cross-device: Un tipo específico en TODOS los dispositivos
+GET {{baseUrl}}/readings/history?type={{type}}
+Accept: application/json
+
+###
+
+### ============================================================================
+### 4. ESTADÍSTICAS (STATS)
+### ============================================================================
+
+### Obtener estadísticas (min, max, avg, count) de todos los sensores de un device
+GET {{baseUrl}}/readings/stats?deviceId={{deviceId}}
+Accept: application/json
+
+###
+
+### Obtener estadísticas de un solo sensor dentro de un device
+GET {{baseUrl}}/readings/stats?deviceId={{deviceId}}&sensorId={{sensorId}}
+Accept: application/json
+
+###
+
+### ============================================================================
+### 5. DESCUBRIMIENTO DE DISPOSITIVOS Y SENSORES
+### ============================================================================
+
+### Listar todos los IDs de dispositivos registrados
+GET {{baseUrl}}/devices
+Accept: application/json
+
+###
+
+### Listar los sensores únicos registrados para un dispositivo
+GET {{baseUrl}}/devices/{{deviceId}}/sensors
+Accept: application/json
