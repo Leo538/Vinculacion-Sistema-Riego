@@ -1,7 +1,7 @@
 import { AlertasPageView } from "@/modules/alertas/components/AlertasPageView";
-import { getOpenMeteoDashboardData } from "@/modules/dashboard/data/openMeteoDashboardData";
+import { getOpenMeteoClimateOnly } from "@/modules/dashboard/data/openMeteoClimate";
 
 export default async function AlertasPage() {
-  const dashboardData = await getOpenMeteoDashboardData();
-  return <AlertasPageView dashboardData={dashboardData} />;
+  const climate = await getOpenMeteoClimateOnly();
+  return <AlertasPageView climate={climate} />;
 }

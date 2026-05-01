@@ -8,11 +8,23 @@ interface ChartPanelProps {
   title: string;
   subtitle?: string;
   data: SoilHumidityPoint[];
+  /** Etiqueta del eje / tooltip (ej. humedad, temperatura). */
+  valueLabel?: string;
+  /** Unidad mostrada en tooltip (ej. %, °C). */
+  valueUnit?: string;
 }
 
-export function ChartPanel({ title, subtitle, data }: ChartPanelProps) {
+export function ChartPanel({ title, subtitle, data, valueLabel = "Valor", valueUnit = "%" }: ChartPanelProps) {
   if (data.length === 0) {
-    return null;
+    return (
+      <Card className="flex h-full min-h-[8rem] flex-col justify-center overflow-hidden" padding="sm">
+        <div className="mb-1 shrink-0">
+          <h2 className="text-[10px] font-bold uppercase tracking-wide text-white">{title}</h2>
+          {subtitle ? <p className="truncate text-[10px] text-slate-600">{subtitle}</p> : null}
+        </div>
+        <p className="text-center text-[10px] text-slate-500">Sin datos históricos en el rango seleccionado.</p>
+      </Card>
+    );
   }
 
   const values = data.map((d) => d.value);
@@ -151,9 +163,9 @@ export function ChartPanel({ title, subtitle, data }: ChartPanelProps) {
             >
               <p className="text-[11px] font-medium text-slate-300">{hoveredPoint.label}</p>
               <p className="text-lg font-semibold leading-tight" style={{ color: "#ffffff" }}>
-                {hoveredPoint.value} %
+                {hoveredPoint.value} {valueUnit}
               </p>
-              <p className="text-xs font-semibold text-sky-400">Humedad</p>
+              <p className="text-xs font-semibold text-sky-400">{valueLabel}</p>
             </div>
           ) : null}
           <div className="mt-1 grid shrink-0" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}>

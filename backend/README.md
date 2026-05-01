@@ -1,3 +1,0 @@
-# Backend
-
-Pendiente de implementación.

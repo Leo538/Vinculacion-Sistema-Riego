@@ -3,10 +3,12 @@ export type SensorStatus = "online" | "offline";
 export interface SummaryMetric {
   id: string;
   label: string;
+  /** Solo IoT: `sensorId · tiempo` o referencia contextual. Opcional para tarjetas Open-Meteo. */
+  subtitle?: string;
   value: string;
   status: string;
   trend?: "up" | "down" | "stable";
-  icon: "droplets" | "thermometer" | "cloud-rain" | "waves" | "power" | "gauge" | "activity";
+  icon: "droplets" | "thermometer" | "cloud-rain" | "waves" | "power" | "gauge" | "activity" | "mountain";
 }
 
 export interface CurrentWeather {
@@ -17,7 +19,7 @@ export interface CurrentWeather {
   relativeHumidity: number;
   /** Icono principal del panel (sol, nube, lluvia, tormenta) */
   hero?: "sunny" | "partly" | "cloudy" | "rain" | "storm";
-  /** Presión atmosférica (hPa), mock o API */
+  /** Presión superficial (hPa) desde Open-Meteo cuando existe */
   pressureHpa?: number;
   /** Visibilidad estimada (km) */
   visibilityKm?: number;
@@ -37,14 +39,22 @@ export interface ForecastDay {
 
 export interface SensorReading {
   id: string;
-  name: string;
+  /** Título legible del tipo de medición. */
+  title: string;
+  /** `sensorId · lectura instantánea` / tiempo relativo */
+  subtitle: string;
   value: string;
   status: SensorStatus;
-  updatedAt: string;
 }
 
+export type IrrigationAction =
+  | "Regar ahora"
+  | "No regar"
+  | "Esperar lluvia"
+  | "Sin dato de suelo";
+
 export interface IrrigationDecision {
-  action: "Regar ahora" | "No regar";
+  action: IrrigationAction;
   suggestedTime: string;
   reason: string;
 }

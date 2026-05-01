@@ -1,5 +1,12 @@
+import type { ReactNode } from "react";
 import { LivePageHeader } from "@/shared/components/ui/LivePageHeader";
 
-export function SensorsPageHeader() {
-  return <LivePageHeader title="Sensores" subtitle="Monitoreo en tiempo real de variables del sistema de riego" />;
+export function SensorsPageHeader({ trailing }: { trailing?: ReactNode }) {
+  return (
+    <LivePageHeader
+      title="Sensores"
+      subtitle="Lecturas IoT (backend) y clima de referencia (Open-Meteo)"
+      trailing={trailing}
+    />
+  );
 }
