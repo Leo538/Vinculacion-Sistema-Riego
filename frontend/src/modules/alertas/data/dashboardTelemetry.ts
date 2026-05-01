@@ -1,3 +1,2 @@
-/** Puente al dataset del dashboard (mock + Open-Meteo) hasta API de alertas dedicada. */
-export { mockDashboardData } from "@/modules/dashboard/data/mockDashboardData";
+/** Open-Meteo + alertas vacías hasta API de alertas dedicada. */
 export { getOpenMeteoDashboardData } from "@/modules/dashboard/data/openMeteoDashboardData";

@@ -3,6 +3,17 @@ import { WeatherForecastIcon } from "@/modules/dashboard/components/weather/Weat
 import { Card } from "@/shared/components/ui/Card";
 
 export function ForecastPanel({ forecast }: { forecast: ForecastDay[] }) {
+  if (forecast.length === 0) {
+    return (
+      <Card className="flex h-full min-h-0 flex-col overflow-hidden" padding="sm">
+        <h2 className="mb-2 shrink-0 text-sm font-semibold uppercase tracking-wide text-white">Pronóstico (7 días)</h2>
+        <p className="flex flex-1 items-center justify-center px-2 text-center text-[10px] text-slate-500">
+          Sin pronóstico (Open-Meteo no disponible o sin datos).
+        </p>
+      </Card>
+    );
+  }
+
   return (
     <Card className="flex h-full min-h-0 flex-col overflow-hidden" padding="sm">
       <h2 className="mb-2 shrink-0 text-sm font-semibold uppercase tracking-wide text-white">

@@ -1,4 +1,4 @@
-import { Activity, CloudRain, Droplets, Gauge, Thermometer, Waves } from "lucide-react";
+import { Activity, CloudRain, Droplets, Gauge, Mountain, Thermometer, Waves } from "lucide-react";
 import type { SummaryMetric } from "@/modules/dashboard/types";
 import { Card } from "@/shared/components/ui/Card";
 import { IconBox } from "@/shared/components/ui/IconBox";
@@ -10,7 +10,8 @@ const metricIconMap = {
   waves: Waves,
   power: Gauge,
   gauge: Gauge,
-  activity: Activity
+  activity: Activity,
+  mountain: Mountain
 } as const;
 
 function statusTone(metric: SummaryMetric): string {
@@ -30,7 +31,14 @@ export function SummaryCard({ metric }: { metric: SummaryMetric }) {
       className="flex h-full min-h-[5.25rem] flex-col justify-between gap-1 overflow-hidden"
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="line-clamp-2 text-[10px] font-bold leading-tight text-slate-300">{metric.label}</span>
+        <div className="min-w-0 flex-1">
+          <span className="block line-clamp-2 text-[10px] font-bold leading-tight text-slate-300">{metric.label}</span>
+          {metric.subtitle ? (
+            <span className="mt-0.5 block truncate text-[9px] font-medium leading-tight text-slate-500">
+              {metric.subtitle}
+            </span>
+          ) : null}
+        </div>
         <IconBox icon={Icon} className="size-8" iconSizeClassName="size-3.5" rounded="full" />
       </div>
       <p className="truncate text-lg font-semibold leading-tight tracking-tight text-white">{metric.value}</p>

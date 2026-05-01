@@ -20,7 +20,14 @@ export function SensorStatusCompact({ sensors }: { sensors: SensorCompactStatusI
             >
               <div className="flex min-w-0 items-center gap-2">
                 <IconBox icon={Icon} className="size-7" iconSizeClassName="size-3" rounded="full" />
-                <span className="truncate text-[11px] text-slate-700 dark:text-slate-200">{sensor.name}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate text-[11px] font-medium text-slate-700 dark:text-slate-200">
+                    {sensor.title}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[9px] leading-snug text-slate-500 dark:text-slate-400">
+                    {sensor.subtitle}
+                  </span>
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-[11px] font-medium text-slate-900 dark:text-white">{sensor.value}</p>

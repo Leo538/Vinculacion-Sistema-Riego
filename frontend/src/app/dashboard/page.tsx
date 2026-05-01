@@ -1,7 +1,7 @@
 import { DashboardPageView } from "@/modules/dashboard/components/DashboardPageView";
-import { getOpenMeteoDashboardData } from "@/modules/dashboard/data/openMeteoDashboardData";
+import { getOpenMeteoClimateOnly } from "@/modules/dashboard/data/openMeteoClimate";
 
 export default async function DashboardPage() {
-  const dashboardData = await getOpenMeteoDashboardData();
-  return <DashboardPageView dashboardData={dashboardData} />;
+  const climate = await getOpenMeteoClimateOnly();
+  return <DashboardPageView climate={climate} />;
 }

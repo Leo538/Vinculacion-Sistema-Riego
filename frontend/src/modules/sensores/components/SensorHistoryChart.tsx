@@ -44,6 +44,18 @@ function HistoryTooltip({
 }
 
 export function SensorHistoryChart({ series }: { series: SensorHistorySeries }) {
+  if (!series.data.length) {
+    return (
+      <Card padding="sm" className="flex h-full min-h-[11rem] flex-col justify-center gap-1.5">
+        <div>
+          <h2 className="text-xs font-semibold text-slate-900 dark:text-white">{series.title}</h2>
+          <p className="text-[10px] text-slate-500">{series.subtitle}</p>
+        </div>
+        <p className="py-6 text-center text-[10px] text-slate-500">Sin datos históricos en las últimas 24 h.</p>
+      </Card>
+    );
+  }
+
   return (
     <Card padding="sm" className="flex h-full min-h-[11rem] flex-col gap-1.5">
       <div>
