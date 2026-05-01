@@ -7,7 +7,7 @@ export function AlertasPageView({ dashboardData }: { dashboardData: DashboardDat
     <TelemetryPageLayout
       title="Alertas"
       subtitle="Historial y avisos del sistema de monitoreo"
-      note="Las alertas se cargan con los mismos datos que el dashboard (mock / Open-Meteo) hasta integrar API real."
+      note="Las alertas dependen de un API que el backend aún no expone; esta vista no muestra alertas inventadas."
     >
       <div className="grid min-h-0 shrink-0 gap-3">
         <AlertPanel alerts={dashboardData.alerts} />

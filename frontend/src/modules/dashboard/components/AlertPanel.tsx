@@ -22,6 +22,12 @@ export function AlertPanel({ alerts }: { alerts: AlertItem[] }) {
         <IconBox icon={Bell} className="size-7" iconSizeClassName="size-3" variant="amber" rounded="full" />
         <h2 className="text-[10px] font-bold uppercase tracking-wide text-white">Alertas</h2>
       </div>
+      {visible.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-slate-600/50 bg-slate-900/30 px-2 py-3 text-[10px] leading-snug text-slate-500">
+          No hay alertas desde el backend. El API IoT actual no expone un listado de alertas; aquí solo se mostrarán avisos cuando exista un
+          endpoint o reglas conectadas.
+        </p>
+      ) : null}
       <DashboardScrollArea as="ul" className="space-y-1.5">
         {visible.map((alert) => (
           <li

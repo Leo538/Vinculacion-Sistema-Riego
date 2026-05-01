@@ -16,7 +16,9 @@ export function SensorTechnicalSummary({ stats }: { stats: SensorTechnicalStats 
         </div>
         <div className="rounded-lg border border-[#CBDDF5] bg-[#EEF5FF] p-2 dark:border-slate-700/35 dark:bg-[#0d1826]">
           <dt className="text-slate-500">Lecturas hoy</dt>
-          <dd className="font-semibold tabular-nums text-sky-300">{stats.readingsToday}</dd>
+          <dd className="font-semibold tabular-nums text-sky-300">
+            {stats.readingsToday === null ? "—" : stats.readingsToday}
+          </dd>
         </div>
         <div className="rounded-lg border border-[#CBDDF5] bg-[#EEF5FF] p-2 dark:border-slate-700/35 dark:bg-[#0d1826]">
           <dt className="text-slate-500">Frecuencia</dt>

@@ -1,4 +1,4 @@
-import { Activity, CloudRain, Droplets, Gauge, Sun, Thermometer, Waves } from "lucide-react";
+import { Activity, CloudRain, Droplets, Gauge, Mountain, Sun, Thermometer, Waves } from "lucide-react";
 
 export const sensorIconMap = {
   droplets: Droplets,
@@ -7,5 +7,6 @@ export const sensorIconMap = {
   activity: Activity,
   "cloud-rain": CloudRain,
   sun: Sun,
-  gauge: Gauge
+  gauge: Gauge,
+  mountain: Mountain
 } as const;

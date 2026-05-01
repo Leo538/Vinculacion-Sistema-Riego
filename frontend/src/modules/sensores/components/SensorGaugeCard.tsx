@@ -36,17 +36,23 @@ export function SensorGaugeCard({ sensor }: { sensor: SensorGaugeItem }) {
         : "border-rose-500/60 bg-rose-500/10 text-rose-300";
 
   return (
-    <Card className="flex h-[258px] flex-col justify-between gap-2 !p-6">
+    <Card className="flex min-h-[258px] flex-col gap-3 !p-6">
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{sensor.label}</p>
-          <p className="text-[10px] text-slate-500">Lectura instantánea</p>
+          {sensor.subtitle ? (
+            <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+              {sensor.subtitle}
+            </p>
+          ) : (
+            <p className="mt-1 text-[10px] text-slate-500">Lectura instantánea</p>
+          )}
         </div>
         <IconBox icon={Icon} className="size-8" iconSizeClassName="size-3.5" rounded="full" />
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center pb-2">
-        <div className="relative mx-auto mt-4 h-[150px] w-[260px] max-w-full">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-end pb-1">
+        <div className="relative mx-auto mb-1 h-[150px] w-[260px] max-w-full">
           <svg viewBox="0 0 260 150" className="absolute inset-0 h-full w-full" aria-hidden>
             <path
               d="M30 125 A100 100 0 0 1 230 125"
@@ -82,8 +88,8 @@ export function SensorGaugeCard({ sensor }: { sensor: SensorGaugeItem }) {
           </div>
         </div>
 
-        <div className="mt-1 flex justify-center">
-          <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${badgeClass}`}>{status}</span>
+        <div className="flex shrink-0 justify-center pt-3 pb-1">
+          <span className={`rounded-full border px-3 py-1 text-xs font-semibold shadow-sm ${badgeClass}`}>{status}</span>
         </div>
       </div>
     </Card>

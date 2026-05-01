@@ -1,7 +1,7 @@
 import { RiegoPageView } from "@/modules/riego/components/RiegoPageView";
-import { getOpenMeteoDashboardData } from "@/modules/dashboard/data/openMeteoDashboardData";
+import { getOpenMeteoClimateOnly } from "@/modules/dashboard/data/openMeteoClimate";
 
 export default async function RiegoPage() {
-  const dashboardData = await getOpenMeteoDashboardData();
-  return <RiegoPageView dashboardData={dashboardData} />;
+  const climate = await getOpenMeteoClimateOnly();
+  return <RiegoPageView climate={climate} />;
 }

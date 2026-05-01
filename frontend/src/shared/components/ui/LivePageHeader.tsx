@@ -1,15 +1,17 @@
 "use client";
 
 import { CheckCircle2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { formatDateTime } from "@/shared/utils/formatters";
 
 interface LivePageHeaderProps {
   title: string;
   subtitle: string;
+  trailing?: ReactNode;
 }
 
-export function LivePageHeader({ title, subtitle }: LivePageHeaderProps) {
+export function LivePageHeader({ title, subtitle, trailing }: LivePageHeaderProps) {
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -24,7 +26,8 @@ export function LivePageHeader({ title, subtitle }: LivePageHeaderProps) {
         <h1 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h1>
         <p className="text-[10px] text-slate-500">{subtitle}</p>
       </div>
-      <div className="flex min-w-0 items-center gap-2 text-[10px] text-slate-400">
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 text-[10px] text-slate-400">
+        {trailing ? <div className="flex min-w-0 items-center gap-2">{trailing}</div> : null}
         <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-400">
           <CheckCircle2 className="size-3" strokeWidth={1.35} />
           En línea
