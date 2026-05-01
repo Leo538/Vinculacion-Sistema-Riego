@@ -283,7 +283,7 @@ export function RiegoPageView({ climate }: { climate: OpenMeteoClimateBundle }) 
       <div className="grid shrink-0 gap-4">
         <IrrigationRecommendation irrigation={irrigation} emphasizeAction />
         {irrigationDataFooter ? (
-          <p className="rounded-lg border border-slate-700/35 bg-[#0f1a2a]/80 px-2 py-1.5 text-[9px] leading-relaxed text-slate-400">
+          <p className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[9px] leading-relaxed text-slate-600 shadow-sm dark:border-slate-700/35 dark:bg-[#0f1a2a]/80 dark:text-slate-400 dark:shadow-none">
             {irrigationDataFooter}
           </p>
         ) : null}
