@@ -5,12 +5,13 @@ import { SensorsPageHeader } from "@/modules/sensores/components/SensorsPageHead
 import { SensorBarIndicator } from "@/modules/sensores/components/SensorBarIndicator";
 import { SensorGaugeCard } from "@/modules/sensores/components/SensorGaugeCard";
 import { SensorHistoryChartLazy } from "@/modules/sensores/components/SensorHistoryChartLazy";
-import { SensorComparisonChart } from "@/modules/sensores/components/SensorComparisonChart";
+import { SensorComparisonChartLazy } from "@/modules/sensores/components/SensorComparisonChartLazy";
 import type { ComparisonLineDef, ComparisonPoint } from "@/modules/sensores/components/SensorComparisonChart";
 import { SensorPlainReadingCard } from "@/modules/sensores/components/SensorPlainReadingCard";
 import { SensorStatusCompact } from "@/modules/sensores/components/SensorStatusCompact";
 import { SensoresEmptyState } from "@/modules/sensores/components/SensoresEmptyState";
 import { SensorTechnicalSummary } from "@/modules/sensores/components/SensorTechnicalSummary";
+import { isSoilMoistureForIrrigation } from "@/modules/dashboard/lib/irrigationRecommendation";
 import {
   inferSensorIconForReading,
   readingToBarItemIfPercentLike,
@@ -78,15 +79,63 @@ function secondComparisonPriority(normKey: string, rawFromApi: string): number {
   return 4;
 }
 
-function resolveSoilMoistureTypeKey(byType: ComparisonPointsMap, normalizeFn: (s: string) => string): string | null {
+function collectSoilMoistureTypeKeys(
+  byType: ComparisonPointsMap,
+  normalizeFn: (s: string) => string,
+  rawTypeByNormKey: Map<string, string>
+): string[] {
+  const soilKeys = new Set<string>();
   for (const k of byType.keys()) {
-    const sampleNorm = normalizeFn(k);
-    if (sampleNorm === "soil_moisture" || sampleNorm.includes("soil_moist")) return k;
+    const nk = normalizeFn(k);
+    const raw = rawTypeByNormKey.get(nk) ?? k;
+    if (
+      nk === "soil_moisture" ||
+      nk.includes("soil_moist") ||
+      isSoilMoistureComparableKey(nk, raw) ||
+      isSoilMoistureComparableKey(nk, k) ||
+      isSoilMoistureForIrrigation(raw, k)
+    )
+      soilKeys.add(k);
   }
-  for (const k of byType.keys()) {
-    if (isSoilMoistureComparableKey(normalizeFn(k), k)) return k;
+  return Array.from(soilKeys);
+}
+
+/** Une varios `type` de humedad de suelo por sensor y bucket temporal (corrige pérdidas por claves divergentes en el backend). */
+function mergeSoilMoistureBySensor(byType: ComparisonPointsMap, soilTypeKeys: string[]): Map<string, Map<number, number>> {
+  const merged = new Map<string, Map<number, number>>();
+  for (const tk of soilTypeKeys) {
+    const bySensor = byType.get(tk);
+    if (!bySensor) continue;
+    for (const [sensorId, buckets] of bySensor) {
+      let target = merged.get(sensorId);
+      if (!target) {
+        target = new Map<number, number>();
+        merged.set(sensorId, target);
+      }
+      for (const [bk, val] of buckets) {
+        target.set(bk, val);
+      }
+    }
   }
-  return null;
+  return merged;
+}
+
+function formatComparisonBucketLabel(bucketMs: number, timeRange: TimeRangeKey): string {
+  const d = new Date(bucketMs);
+  if (Number.isNaN(d.getTime())) return "—";
+  if (timeRange === "24h") {
+    return d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false });
+  }
+  const y = d.getFullYear();
+  const cy = new Date().getFullYear();
+  const datePart = d.toLocaleDateString("es-ES", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    ...(y !== cy ? { year: "2-digit" as const } : {})
+  });
+  const timePart = d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${datePart} · ${timePart}`;
 }
 
 function pickSecondComparisonTypeKey(
@@ -217,11 +266,13 @@ export function SensoresPageView() {
       setLatest(readings);
 
       const { from, to } = resolveRangeIso(timeRange, customDateRange);
+      const historySize =
+        timeRange === "24h" ? 2000 : timeRange === "7d" ? 3500 : timeRange === "30d" ? 5000 : 5000;
       const page24 = await fetchReadingsHistory({
         deviceId: devId,
         from,
         to,
-        size: timeRange === "24h" ? 800 : 1500,
+        size: historySize,
         page: 0
       });
       setHistoryRows(page24.content);
@@ -329,6 +380,7 @@ export function SensoresPageView() {
     const deviceSensorIds = new Set(latest.map((r) => r.sensorId));
     for (const row of historyRows) {
       if (!deviceSensorIds.has(row.sensorId)) continue;
+      if (typeof row.value !== "number" || !Number.isFinite(row.value)) continue;
       const rowType = normalizeType(row.type);
       const bySensor = byType.get(rowType) ?? new Map<string, Map<number, number>>();
       const sensorMap = bySensor.get(row.sensorId) ?? new Map<number, number>();
@@ -355,6 +407,35 @@ export function SensoresPageView() {
     return m;
   }, [sensorCatalog, latest, normalizeType]);
 
+  const buildComparisonSeriesFromBuckets = useCallback(
+    (bySensor: Map<string, Map<number, number>>): { lines: ComparisonLineDef[]; data: ComparisonPoint[] } => {
+      const entries = Array.from(bySensor.entries()).slice(0, 6);
+      const lines = entries.map(([sensorId], idx) => ({
+        key: `s${idx}`,
+        name: sensorId,
+        color: COMPARISON_COLORS[idx % COMPARISON_COLORS.length]
+      }));
+      const allBuckets = new Set<number>();
+      for (const [, values] of entries) {
+        for (const bucket of values.keys()) allBuckets.add(bucket);
+      }
+      const sortedBuckets = Array.from(allBuckets).sort((a, b) => a - b);
+      const data: ComparisonPoint[] = sortedBuckets.map((bucket) => {
+        const point: ComparisonPoint = {
+          timeLabel: formatComparisonBucketLabel(bucket, timeRange)
+        };
+        for (let i = 0; i < entries.length; i++) {
+          const [, values] = entries[i]!;
+          const v = values.get(bucket);
+          point[`s${i}`] = typeof v === "number" && Number.isFinite(v) ? v : null;
+        }
+        return point;
+      });
+      return { lines, data };
+    },
+    [timeRange]
+  );
+
   const buildComparisonModel = useCallback(
     (pointsByType: ComparisonPointsMap, typeLookupKey: string) => {
       const norm = normalizeType(typeLookupKey);
@@ -367,30 +448,8 @@ export function SensoresPageView() {
           }
         }
       }
-      if (!bySensor) return { lines: [], data: [], unit: "" };
-      const entries = Array.from(bySensor.entries()).slice(0, 6);
-      const lines = entries.map(([sensorId], idx) => ({
-        key: sensorId,
-        name: sensorId,
-        color: COMPARISON_COLORS[idx % COMPARISON_COLORS.length]
-      }));
-      const allBuckets = new Set<number>();
-      for (const [, values] of entries) {
-        for (const bucket of values.keys()) allBuckets.add(bucket);
-      }
-      const sortedBuckets = Array.from(allBuckets).sort((a, b) => a - b);
-      const data: ComparisonPoint[] = sortedBuckets.map((bucket) => {
-        const point: ComparisonPoint = {
-          timeLabel:
-            timeRange === "24h"
-              ? new Date(bucket).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false })
-              : new Date(bucket).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })
-        };
-        for (const [sensorId, values] of entries) {
-          point[sensorId] = values.get(bucket) ?? null;
-        }
-        return point;
-      });
+      if (!bySensor) return { lines: [] as ComparisonLineDef[], data: [] as ComparisonPoint[], unit: "" };
+      const { lines, data } = buildComparisonSeriesFromBuckets(bySensor);
       const unit = (
         historyRows.find((r) => normalizeType(r.type) === norm)?.unit ??
         latest.find((r) => normalizeType(r.type) === norm)?.unit ??
@@ -398,18 +457,27 @@ export function SensoresPageView() {
       ).trim();
       return { lines, data, unit };
     },
-    [historyRows, latest, normalizeType, timeRange]
+    [buildComparisonSeriesFromBuckets, historyRows, latest, normalizeType]
   );
 
-  const soilComparisonTypeKey = useMemo(
-    () => resolveSoilMoistureTypeKey(comparisonPointsByDevice, normalizeType),
-    [comparisonPointsByDevice, normalizeType]
+  const soilMoistureTypeKeysMerged = useMemo(
+    () => collectSoilMoistureTypeKeys(comparisonPointsByDevice, normalizeType, comparisonRawTypeLookup),
+    [comparisonPointsByDevice, normalizeType, comparisonRawTypeLookup]
   );
 
   const soilComparison = useMemo(() => {
-    if (!soilComparisonTypeKey) return { lines: [] as ComparisonLineDef[], data: [] as ComparisonPoint[], unit: "" };
-    return buildComparisonModel(comparisonPointsByDevice, soilComparisonTypeKey);
-  }, [buildComparisonModel, comparisonPointsByDevice, soilComparisonTypeKey]);
+    if (!soilMoistureTypeKeysMerged.length)
+      return { lines: [] as ComparisonLineDef[], data: [] as ComparisonPoint[], unit: "" };
+    const mergedBuckets = mergeSoilMoistureBySensor(comparisonPointsByDevice, soilMoistureTypeKeysMerged);
+    if (!mergedBuckets.size)
+      return { lines: [] as ComparisonLineDef[], data: [] as ComparisonPoint[], unit: "" };
+    const { lines, data } = buildComparisonSeriesFromBuckets(mergedBuckets);
+    const soilRef =
+      historyRows.find((r) => isSoilMoistureForIrrigation(r.type, r.sensorId)) ??
+      latest.find((r) => isSoilMoistureForIrrigation(r.type, r.sensorId));
+    const unit = (soilRef?.unit ?? "%").trim() || "%";
+    return { lines, data, unit };
+  }, [buildComparisonSeriesFromBuckets, comparisonPointsByDevice, soilMoistureTypeKeysMerged, historyRows, latest]);
 
   const secondComparisonTypeKey = useMemo(
     () => pickSecondComparisonTypeKey(comparisonPointsByDevice, normalizeType, comparisonRawTypeLookup),
@@ -585,8 +653,14 @@ export function SensoresPageView() {
       <SensorsPageHeader trailing={deviceSelect} />
 
       <Card padding="sm" className="mb-3">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Filtros de visualización</p>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="mb-3 space-y-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Filtros avanzados</p>
+          <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+            Tipo de sensor, rango y estado aplican a las tarjetas y al histórico por sensor en la zona central. Las
+            comparativas inferiores usan todas las lecturas del dispositivo en el mismo rango de tiempo cargado desde el backend.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <label className="flex flex-col gap-1 text-[10px] text-slate-500">
             Tipo de sensor
             <select className={controlClass} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
@@ -717,7 +791,7 @@ export function SensoresPageView() {
         </div>
       ) : null}
 
-      <section className="mt-3 relative z-0 grid grid-cols-1 gap-3 xl:grid-cols-12 xl:items-stretch">
+      <section className="mt-4 relative z-0 isolate grid grid-cols-1 gap-5 xl:grid-cols-12 xl:items-stretch xl:gap-6">
         {reorganizeMainSection ? (
           <>
             <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:col-span-12 xl:grid-cols-2">
@@ -745,9 +819,9 @@ export function SensoresPageView() {
           </>
         ) : (
           <>
-            <div className="grid min-w-0 grid-cols-1 content-start gap-3 md:grid-cols-2 xl:col-span-8 xl:items-start">
+            <div className="grid min-w-0 grid-cols-1 content-start gap-5 md:grid-cols-2 md:gap-6 xl:col-span-8 xl:items-start">
               {chartSeries.map((series, idx) => (
-                <div key={series.id} className="relative min-w-0">
+                <div key={series.id} className="relative min-w-0 overflow-visible pb-1 pt-1">
                   <SensorHistoryChartLazy series={series} mountDelayMs={idx * 120} />
                 </div>
               ))}
@@ -763,7 +837,7 @@ export function SensoresPageView() {
               ) : null}
             </div>
 
-            <div className="grid min-h-0 min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:col-span-4 xl:grid-cols-1 xl:items-stretch xl:self-start">
+            <div className="grid min-h-0 min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:col-span-4 xl:grid-cols-1 xl:items-stretch xl:gap-5 xl:self-start">
               <div className="relative min-w-0 flex">
                 <div className="min-h-0 w-full">
                   <SensorTechnicalSummary stats={technical} />
@@ -783,13 +857,13 @@ export function SensoresPageView() {
         <section
           className={
             comparisonChartsToShow.length === 2
-              ? "mt-4 grid min-w-0 grid-cols-1 items-start gap-3 sm:grid-cols-2"
-              : "mt-4 grid min-w-0 grid-cols-1 items-start gap-3"
+              ? "mt-8 grid min-w-0 grid-cols-1 items-start gap-6 pb-6 sm:grid-cols-2 lg:gap-8"
+              : "mt-8 grid min-w-0 grid-cols-1 items-start gap-6 pb-6"
           }
         >
           {comparisonChartsToShow.map((card) => (
-            <div key={card.id} className="relative min-w-0 w-full">
-              <SensorComparisonChart
+            <div key={card.id} className="relative min-w-0 w-full overflow-visible py-1">
+              <SensorComparisonChartLazy
                 title={card.title}
                 subtitle={card.subtitle}
                 unit={card.unit}

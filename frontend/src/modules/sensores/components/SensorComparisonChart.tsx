@@ -82,20 +82,29 @@ export function SensorComparisonChart({
     );
   }
 
+  const chartHeightPx = 224;
+
   return (
-    <Card padding="sm" className="relative isolate flex h-full min-h-[16.5rem] flex-col gap-2 overflow-hidden">
+    <Card padding="sm" className="relative isolate flex h-full min-h-[17.5rem] flex-col gap-3 overflow-visible">
       <div className="shrink-0">
         <h2 className="text-xs font-semibold text-slate-900 dark:text-white">{title}</h2>
         <p className="text-[10px] text-slate-500">{subtitle}</p>
       </div>
-      <div className="h-52 w-full min-h-0 pt-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 8 }}>
+      <div className="h-56 w-full min-h-0 shrink-0 pt-1 pb-2">
+        <ResponsiveContainer width="100%" height={chartHeightPx} debounce={40}>
+          <LineChart data={data} margin={{ top: 4, right: 10, left: -4, bottom: 16 }}>
             <CartesianGrid stroke="#334155" strokeOpacity={0.2} vertical={false} />
             <XAxis dataKey="timeLabel" tick={tickStyle} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} />
-            <YAxis tick={tickStyle} tickLine={false} axisLine={false} width={30} domain={["auto", "auto"]} />
+            <YAxis tick={tickStyle} tickLine={false} axisLine={false} width={36} domain={["auto", "auto"]} />
             <Tooltip content={<ComparisonTooltip unit={unit} />} />
-            <Legend verticalAlign="top" align="left" wrapperStyle={{ fontSize: 10, paddingBottom: 6 }} />
+            <Legend
+              verticalAlign="top"
+              align="center"
+              layout="horizontal"
+              wrapperStyle={{ fontSize: 10, paddingTop: 0, paddingBottom: 10, lineHeight: 1.2 }}
+              iconSize={10}
+              iconType="circle"
+            />
             {lines.map((line) => (
               <Line
                 key={line.key}

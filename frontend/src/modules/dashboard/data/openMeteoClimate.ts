@@ -9,7 +9,7 @@ const OPEN_METEO_URL =
   "https://api.open-meteo.com/v1/forecast" +
   `?latitude=${OPEN_METEO_LATITUDE}&longitude=${OPEN_METEO_LONGITUDE}` +
   "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,surface_pressure,visibility" +
-  "&hourly=precipitation_probability,relative_humidity_2m" +
+  "&hourly=precipitation_probability,relative_humidity_2m,temperature_2m" +
   "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
   "&wind_speed_unit=kmh&timezone=auto";
 
@@ -63,9 +63,16 @@ const findCurrentHourlyIndex = (times: string[]): number => {
   return best;
 };
 
+export type OpenMeteoHourlyPoint = {
+  time: string;
+  rainPct: number;
+  temperatureC: number;
+};
+
 export type OpenMeteoClimateBundle = {
   weather: CurrentWeather;
   forecast: ForecastDay[];
+  hourlyForecast: OpenMeteoHourlyPoint[];
   rainProbabilityNow: number;
   apparentTemperature: number;
   /** Elevación sobre el nivel del mar (modelo digital), Open-Meteo Elevation API, en metros */
@@ -84,6 +91,7 @@ function fallbackClimate(): OpenMeteoClimateBundle {
       location: "—"
     },
     forecast: [],
+    hourlyForecast: [],
     rainProbabilityNow: 0,
     apparentTemperature: 0,
     elevationMeters: undefined
@@ -136,6 +144,12 @@ export async function getOpenMeteoClimateOnly(): Promise<OpenMeteoClimateBundle>
 
     const times = (hourly?.time as string[] | undefined) ?? [];
     const rainByHour = (hourly?.precipitation_probability as number[] | undefined) ?? [];
+    const tempHourlyRaw = (hourly?.temperature_2m as number[] | undefined) ?? [];
+    const hourlyForecast: OpenMeteoHourlyPoint[] = times.map((tm, idx) => ({
+      time: tm,
+      rainPct: Math.round(Number(rainByHour[idx] ?? 0)),
+      temperatureC: Math.round(Number(tempHourlyRaw[idx] ?? NaN) * 10) / 10 || 0
+    }));
     const currentIdx = times.length ? findCurrentHourlyIndex(times) : 0;
     const rainProbabilityNow = Math.round(rainByHour[currentIdx] ?? rainByHour[0] ?? 0);
     const wCode = current.weather_code ?? 0;
@@ -153,10 +167,12 @@ export async function getOpenMeteoClimateOnly(): Promise<OpenMeteoClimateBundle>
         ? Math.round((Number(visM) / 1000) * 10) / 10
         : undefined;
 
-    const forecast: ForecastDay[] = (daily.time as string[]).slice(0, 7).map((day: string, index: number) => {
-      const date = new Date(day);
+    const forecast: ForecastDay[] = (daily.time as string[]).slice(0, 7).map((dayIso: string, index: number) => {
+      const date = new Date(dayIso);
+      const isoSlice = /^(\d{4}-\d{2}-\d{2})/.exec(dayIso);
       return {
         day: dayNames[date.getDay()],
+        isoDate: isoSlice?.[1],
         minTemp: Math.round(daily.temperature_2m_min[index]),
         maxTemp: Math.round(daily.temperature_2m_max[index]),
         condition: mapWeatherCodeToCondition(daily.weather_code[index]),
@@ -180,6 +196,7 @@ export async function getOpenMeteoClimateOnly(): Promise<OpenMeteoClimateBundle>
     return {
       weather,
       forecast,
+      hourlyForecast,
       rainProbabilityNow,
       apparentTemperature: apparent,
       elevationMeters

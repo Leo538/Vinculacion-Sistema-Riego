@@ -22,7 +22,14 @@ function styleForDecision(irrigation: IrrigationDecision): {
   return { MainIcon: Sprout, variant: "cyan", titleClass: "text-sky-300" };
 }
 
-export function IrrigationRecommendation({ irrigation }: { irrigation: IrrigationDecision }) {
+export function IrrigationRecommendation({
+  irrigation,
+  emphasizeAction
+}: {
+  irrigation: IrrigationDecision;
+  /** Texto principal más visible (vista /riego). */
+  emphasizeAction?: boolean;
+}) {
   const { MainIcon, variant, titleClass } = styleForDecision(irrigation);
 
   return (
@@ -39,7 +46,11 @@ export function IrrigationRecommendation({ irrigation }: { irrigation: Irrigatio
           rounded="full"
         />
         <div className="min-w-0 flex-1">
-          <p className={`truncate text-xs font-semibold ${titleClass}`}>{irrigation.action}</p>
+          <p
+            className={`${emphasizeAction ? "sm:text-[1rem] text-sm font-semibold leading-snug" : "truncate text-xs font-semibold"} ${titleClass}`}
+          >
+            {irrigation.action}
+          </p>
           <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-slate-400">
             <Clock3 className="size-3 shrink-0 text-slate-500" strokeWidth={1.35} />
             {irrigation.suggestedTime}
