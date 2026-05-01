@@ -22,7 +22,12 @@ import {
 } from "@/lib/api/sensors";
 import { historyToChartPoints, isReadingRecent } from "@/modules/dashboard/lib/iotPresentation";
 import { formatValueWithUnit } from "@/modules/dashboard/lib/iotPresentation";
-import { formatSensorTypeTitle, getSensorSubtitle } from "@/shared/lib/sensorDisplay";
+import {
+  formatSensorHistoryChartSubtitle,
+  formatSensorHistoryChartTitle,
+  formatSensorTypeTitle,
+  getSensorSubtitle
+} from "@/shared/lib/sensorDisplay";
 import {
   OPEN_METEO_LOCATION_LABEL,
   OPEN_METEO_UNAVAILABLE,
@@ -153,10 +158,11 @@ export function SensoresPageView() {
       const rows = groupedHistory.get(sensorId) ?? [];
       const first = rows[0];
       const pts = historyToChartPoints(rows).map((p) => ({ hour: p.hour, value: p.value }));
+      const metricType = first?.type ?? "sensor";
       return {
         id: sensorId,
-        title: `${sensorId} · ${first?.type ?? "sensor"} (24 h)`,
-        subtitle: "Backend IoT · últimas 24 h",
+        title: formatSensorHistoryChartTitle(metricType),
+        subtitle: formatSensorHistoryChartSubtitle(sensorId),
         valueLabel: first?.type ?? "Valor",
         unit: first?.unit ?? "",
         color: CHART_COLORS[idx % CHART_COLORS.length],
