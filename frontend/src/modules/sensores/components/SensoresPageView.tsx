@@ -5,8 +5,11 @@ import { SensorsPageHeader } from "@/modules/sensores/components/SensorsPageHead
 import { SensorBarIndicator } from "@/modules/sensores/components/SensorBarIndicator";
 import { SensorGaugeCard } from "@/modules/sensores/components/SensorGaugeCard";
 import { SensorHistoryChartLazy } from "@/modules/sensores/components/SensorHistoryChartLazy";
+import { SensorComparisonChart } from "@/modules/sensores/components/SensorComparisonChart";
+import type { ComparisonLineDef, ComparisonPoint } from "@/modules/sensores/components/SensorComparisonChart";
 import { SensorPlainReadingCard } from "@/modules/sensores/components/SensorPlainReadingCard";
 import { SensorStatusCompact } from "@/modules/sensores/components/SensorStatusCompact";
+import { SensoresEmptyState } from "@/modules/sensores/components/SensoresEmptyState";
 import { SensorTechnicalSummary } from "@/modules/sensores/components/SensorTechnicalSummary";
 import {
   inferSensorIconForReading,
@@ -14,6 +17,7 @@ import {
   readingToGaugeItem
 } from "@/modules/sensores/lib/readingPresentation";
 import type { SensorReadingResponse } from "@/lib/api/types";
+import type { SensorInfoResponse } from "@/lib/api/types";
 import {
   fetchDeviceIds,
   fetchLatestReadings,
@@ -40,6 +44,71 @@ import { IotDeviceSelector } from "@/shared/components/ui/IotDeviceSelector";
 import { Card } from "@/shared/components/ui/Card";
 
 const CHART_COLORS = ["#38bdf8", "#22C55E", "#a78bfa", "#f472b6"];
+const COMPARISON_COLORS = ["#0ea5e9", "#22c55e", "#a855f7", "#f97316", "#e11d48", "#14b8a6"];
+type TimeRangeKey = "24h" | "7d" | "30d" | "custom";
+type StatusFilter = "all" | "active" | "inactive";
+type CustomDateRange = { from: string; to: string };
+type ComparisonCardModel = {
+  id: string;
+  title: string;
+  subtitle: string;
+  unit: string;
+  lines: ComparisonLineDef[];
+  data: ComparisonPoint[];
+};
+
+type ComparisonPointsMap = Map<string, Map<string, Map<number, number>>>;
+
+/** Agrupa todas las variantes típicas de humedad de suelo sobre la misma clave API. */
+function isSoilMoistureComparableKey(normType: string, rawType: string): boolean {
+  const h = `${rawType}`.toLowerCase();
+  const n = normType.toLowerCase();
+  return n === "soil_moisture" || ((h.includes("soil") || h.includes("suelo")) && (h.includes("moist") || h.includes("mois")));
+}
+
+/** Prioridad para la segunda comparativa (0 = mejor). Tipos fuera de la lista llevan mayor número. */
+function secondComparisonPriority(normKey: string, rawFromApi: string): number {
+  const h = `${rawFromApi}`.toLowerCase();
+  const n = normKey.toLowerCase();
+  if (isSoilMoistureComparableKey(n, rawFromApi)) return 999;
+  if (n === "humidity" || (h.includes("relative_humidity") && !h.includes("soil") && !h.includes("suelo"))) return 0;
+  if (n === "temperature" || n === "temp" || h.includes("temperature") || /\btemp\b/.test(h)) return 1;
+  if (n === "water_level" || h.includes("water_level") || h.includes("tanque")) return 2;
+  if (n === "flow" || h.includes("flow") || h.includes("caudal")) return 3;
+  return 4;
+}
+
+function resolveSoilMoistureTypeKey(byType: ComparisonPointsMap, normalizeFn: (s: string) => string): string | null {
+  for (const k of byType.keys()) {
+    const sampleNorm = normalizeFn(k);
+    if (sampleNorm === "soil_moisture" || sampleNorm.includes("soil_moist")) return k;
+  }
+  for (const k of byType.keys()) {
+    if (isSoilMoistureComparableKey(normalizeFn(k), k)) return k;
+  }
+  return null;
+}
+
+function pickSecondComparisonTypeKey(
+  byType: ComparisonPointsMap,
+  normalizeFn: (s: string) => string,
+  rawTypeByNormKey: Map<string, string>
+): string | null {
+  let bestKey: string | null = null;
+  let bestPrio = 9999;
+  for (const [typeKey, bySensor] of byType.entries()) {
+    if ((bySensor?.size ?? 0) < 2) continue;
+    const nk = normalizeFn(typeKey);
+    const raw = rawTypeByNormKey.get(nk) ?? typeKey;
+    const p = secondComparisonPriority(nk, raw);
+    if (p >= 500) continue;
+    if (p < bestPrio || (p === bestPrio && (bestKey === null || typeKey.localeCompare(bestKey, "es") < 0))) {
+      bestPrio = p;
+      bestKey = typeKey;
+    }
+  }
+  return bestKey;
+}
 
 /** Estados para probabilidad de lluvía (solo presentación Open-Meteo en /sensores). */
 function rainPctToLevelCaption(pct: number): { level: SensorLevel; caption: string } {
@@ -66,6 +135,48 @@ export function SensoresPageView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [readingsToday, setReadingsToday] = useState<number | null>(null);
+  const [sensorCatalog, setSensorCatalog] = useState<SensorInfoResponse[]>([]);
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [timeRange, setTimeRange] = useState<TimeRangeKey>("24h");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [customDateRange, setCustomDateRange] = useState<CustomDateRange>(() => {
+    const to = new Date();
+    const from = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const asInput = (d: Date) => {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    return { from: asInput(from), to: asInput(to) };
+  });
+
+  const getRangeStartIso = useCallback((range: TimeRangeKey): string => {
+    const now = Date.now();
+    const ms = range === "24h" ? 24 * 60 * 60 * 1000 : range === "7d" ? 7 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
+    return new Date(now - ms).toISOString();
+  }, []);
+
+  const resolveRangeIso = useCallback(
+    (range: TimeRangeKey, custom: CustomDateRange): { from: string; to: string } => {
+      if (range === "24h" || range === "7d" || range === "30d") {
+        return { from: getRangeStartIso(range), to: new Date().toISOString() };
+      }
+      const fromMs = Date.parse(custom.from);
+      const toMs = Date.parse(custom.to);
+      if (!Number.isNaN(fromMs) && !Number.isNaN(toMs) && fromMs < toMs) {
+        return { from: new Date(fromMs).toISOString(), to: new Date(toMs).toISOString() };
+      }
+      return { from: getRangeStartIso("30d"), to: new Date().toISOString() };
+    },
+    [getRangeStartIso]
+  );
+
+  const bucketMinutesForRange = useCallback((range: TimeRangeKey): number => {
+    if (range === "24h") return 15;
+    if (range === "7d") return 60;
+    return 360;
+  }, []);
+
+  const normalizeType = useCallback((raw: string): string => raw.trim().toLowerCase(), []);
 
   const loadDevices = useCallback(async () => {
     try {
@@ -100,13 +211,19 @@ export function SensoresPageView() {
     setLoading(true);
     setError(null);
     try {
-      await fetchSensorsForDevice(devId);
+      const sensors = await fetchSensorsForDevice(devId);
+      setSensorCatalog(sensors);
       const readings = await fetchLatestReadings(devId);
       setLatest(readings);
 
-      const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const to = new Date().toISOString();
-      const page24 = await fetchReadingsHistory({ deviceId: devId, from, to, size: 500, page: 0 });
+      const { from, to } = resolveRangeIso(timeRange, customDateRange);
+      const page24 = await fetchReadingsHistory({
+        deviceId: devId,
+        from,
+        to,
+        size: timeRange === "24h" ? 800 : 1500,
+        page: 0
+      });
       setHistoryRows(page24.content);
 
       const startDay = new Date();
@@ -124,10 +241,11 @@ export function SensoresPageView() {
       setLatest([]);
       setHistoryRows([]);
       setReadingsToday(null);
+      setSensorCatalog([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [resolveRangeIso, timeRange, customDateRange]);
 
   useEffect(() => {
     void loadDevices();
@@ -142,18 +260,51 @@ export function SensoresPageView() {
     void loadDeviceData(deviceId);
   }, [deviceId, loadDeviceData]);
 
+  const deviceTypeOptions = useMemo(() => {
+    const byNorm = new Map<string, string>();
+    for (const s of sensorCatalog) {
+      const v = normalizeType(s.type);
+      if (!byNorm.has(v)) byNorm.set(v, s.type);
+    }
+    for (const r of latest) {
+      const v = normalizeType(r.type);
+      if (!byNorm.has(v)) byNorm.set(v, r.type);
+    }
+    return Array.from(byNorm.entries())
+      .map(([value, raw]) => ({ value, label: formatSensorTypeTitle(raw) }))
+      .sort((a, b) => a.label.localeCompare(b.label, "es"));
+  }, [sensorCatalog, latest, normalizeType]);
+
+  useEffect(() => {
+    if (typeFilter === "all") return;
+    if (!deviceTypeOptions.some((o) => o.value === typeFilter)) setTypeFilter("all");
+  }, [deviceId, deviceTypeOptions, typeFilter]);
+
+  const filteredLatest = useMemo(() => {
+    return latest.filter((r) => {
+      const typeOk = typeFilter === "all" || normalizeType(r.type) === normalizeType(typeFilter);
+      const statusOk =
+        statusFilter === "all" ||
+        (statusFilter === "active" ? isReadingRecent(r.timestamp) : !isReadingRecent(r.timestamp));
+      return typeOk && statusOk;
+    });
+  }, [latest, typeFilter, statusFilter, normalizeType]);
+
+  const sensorIdsInScope = useMemo(() => new Set(filteredLatest.map((r) => r.sensorId)), [filteredLatest]);
+
   const groupedHistory = useMemo(() => {
     const m = new Map<string, SensorReadingResponse[]>();
     for (const row of historyRows) {
+      if (!sensorIdsInScope.has(row.sensorId)) continue;
       const k = row.sensorId;
       if (!m.has(k)) m.set(k, []);
       m.get(k)!.push(row);
     }
     return m;
-  }, [historyRows]);
+  }, [historyRows, sensorIdsInScope]);
 
   const chartSeries = useMemo((): SensorHistorySeries[] => {
-    const keys = Array.from(groupedHistory.keys()).slice(0, 4);
+    const keys = Array.from(groupedHistory.keys()).slice(0, 6);
     return keys.map((sensorId, idx) => {
       const rows = groupedHistory.get(sensorId) ?? [];
       const first = rows[0];
@@ -171,23 +322,165 @@ export function SensoresPageView() {
     });
   }, [groupedHistory]);
 
+  /** Puntos agrupados para comparativas (todos los tipos presentes en el histórico; sensores del dispositivo en `latest`). */
+  const comparisonPointsByDevice = useMemo(() => {
+    const minutes = bucketMinutesForRange(timeRange);
+    const byType = new Map<string, Map<string, Map<number, number>>>();
+    const deviceSensorIds = new Set(latest.map((r) => r.sensorId));
+    for (const row of historyRows) {
+      if (!deviceSensorIds.has(row.sensorId)) continue;
+      const rowType = normalizeType(row.type);
+      const bySensor = byType.get(rowType) ?? new Map<string, Map<number, number>>();
+      const sensorMap = bySensor.get(row.sensorId) ?? new Map<number, number>();
+      const ts = Date.parse(row.timestamp);
+      if (Number.isNaN(ts)) continue;
+      const bucketMs = Math.floor(ts / (minutes * 60 * 1000)) * (minutes * 60 * 1000);
+      sensorMap.set(bucketMs, row.value);
+      bySensor.set(row.sensorId, sensorMap);
+      byType.set(rowType, bySensor);
+    }
+    return byType;
+  }, [historyRows, latest, bucketMinutesForRange, timeRange, normalizeType]);
+
+  const comparisonRawTypeLookup = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of sensorCatalog) {
+      const n = normalizeType(s.type);
+      if (!m.has(n)) m.set(n, s.type);
+    }
+    for (const r of latest) {
+      const n = normalizeType(r.type);
+      if (!m.has(n)) m.set(n, r.type);
+    }
+    return m;
+  }, [sensorCatalog, latest, normalizeType]);
+
+  const buildComparisonModel = useCallback(
+    (pointsByType: ComparisonPointsMap, typeLookupKey: string) => {
+      const norm = normalizeType(typeLookupKey);
+      let bySensor = pointsByType.get(typeLookupKey) ?? pointsByType.get(norm);
+      if (!bySensor) {
+        for (const [k, v] of pointsByType.entries()) {
+          if (normalizeType(k) === norm) {
+            bySensor = v;
+            break;
+          }
+        }
+      }
+      if (!bySensor) return { lines: [], data: [], unit: "" };
+      const entries = Array.from(bySensor.entries()).slice(0, 6);
+      const lines = entries.map(([sensorId], idx) => ({
+        key: sensorId,
+        name: sensorId,
+        color: COMPARISON_COLORS[idx % COMPARISON_COLORS.length]
+      }));
+      const allBuckets = new Set<number>();
+      for (const [, values] of entries) {
+        for (const bucket of values.keys()) allBuckets.add(bucket);
+      }
+      const sortedBuckets = Array.from(allBuckets).sort((a, b) => a - b);
+      const data: ComparisonPoint[] = sortedBuckets.map((bucket) => {
+        const point: ComparisonPoint = {
+          timeLabel:
+            timeRange === "24h"
+              ? new Date(bucket).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false })
+              : new Date(bucket).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })
+        };
+        for (const [sensorId, values] of entries) {
+          point[sensorId] = values.get(bucket) ?? null;
+        }
+        return point;
+      });
+      const unit = (
+        historyRows.find((r) => normalizeType(r.type) === norm)?.unit ??
+        latest.find((r) => normalizeType(r.type) === norm)?.unit ??
+        ""
+      ).trim();
+      return { lines, data, unit };
+    },
+    [historyRows, latest, normalizeType, timeRange]
+  );
+
+  const soilComparisonTypeKey = useMemo(
+    () => resolveSoilMoistureTypeKey(comparisonPointsByDevice, normalizeType),
+    [comparisonPointsByDevice, normalizeType]
+  );
+
+  const soilComparison = useMemo(() => {
+    if (!soilComparisonTypeKey) return { lines: [] as ComparisonLineDef[], data: [] as ComparisonPoint[], unit: "" };
+    return buildComparisonModel(comparisonPointsByDevice, soilComparisonTypeKey);
+  }, [buildComparisonModel, comparisonPointsByDevice, soilComparisonTypeKey]);
+
+  const secondComparisonTypeKey = useMemo(
+    () => pickSecondComparisonTypeKey(comparisonPointsByDevice, normalizeType, comparisonRawTypeLookup),
+    [comparisonPointsByDevice, comparisonRawTypeLookup, normalizeType]
+  );
+
+  const secondComparison = useMemo(() => {
+    if (!secondComparisonTypeKey) return { lines: [] as ComparisonLineDef[], data: [] as ComparisonPoint[], unit: "" };
+    return buildComparisonModel(comparisonPointsByDevice, secondComparisonTypeKey);
+  }, [buildComparisonModel, comparisonPointsByDevice, secondComparisonTypeKey]);
+
+  const rangeLabel = useMemo(
+    () => (timeRange === "24h" ? "24h" : timeRange === "7d" ? "7d" : timeRange === "30d" ? "30d" : "personalizado"),
+    [timeRange]
+  );
+
+  const comparisonChartsToShow = useMemo((): ComparisonCardModel[] => {
+    const subtitle = "Comparación entre sensores del mismo tipo";
+    const out: ComparisonCardModel[] = [];
+    const soilHasData =
+      soilComparison.lines.length >= 1 && soilComparison.data.length > 0;
+    const secondHasComparable =
+      secondComparison.lines.length >= 2 && secondComparison.data.length > 0;
+    if (soilHasData) {
+      out.push({
+        id: "soil",
+        title: `Comparación de humedad del suelo (${rangeLabel})`,
+        subtitle,
+        unit: soilComparison.unit || "%",
+        lines: soilComparison.lines,
+        data: soilComparison.data
+      });
+    }
+    if (secondHasComparable && secondComparisonTypeKey) {
+      const raw = comparisonRawTypeLookup.get(normalizeType(secondComparisonTypeKey)) ?? secondComparisonTypeKey;
+      out.push({
+        id: "second",
+        title: `Comparación de ${formatSensorTypeTitle(raw)} (${rangeLabel})`,
+        subtitle,
+        unit: secondComparison.unit,
+        lines: secondComparison.lines,
+        data: secondComparison.data
+      });
+    }
+    return out;
+  }, [
+    soilComparison,
+    secondComparison,
+    secondComparisonTypeKey,
+    comparisonRawTypeLookup,
+    normalizeType,
+    rangeLabel
+  ]);
+
   const gaugeSensorIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const r of latest) {
+    for (const r of filteredLatest) {
       if (readingToGaugeItem(r)) ids.add(r.sensorId);
     }
     return ids;
-  }, [latest]);
+  }, [filteredLatest]);
 
   const iotBars = useMemo(() => {
     const out: SensorBarIndicatorItem[] = [];
-    for (const r of latest) {
+    for (const r of filteredLatest) {
       if (gaugeSensorIds.has(r.sensorId)) continue;
       const b = readingToBarItemIfPercentLike(r);
       if (b) out.push(b);
     }
     return out;
-  }, [latest, gaugeSensorIds]);
+  }, [filteredLatest, gaugeSensorIds]);
 
   const meteoOpenMeteoBars = useMemo(() => {
     if (!climate || climate.weather.condition === OPEN_METEO_UNAVAILABLE) return null;
@@ -256,17 +549,17 @@ export function SensoresPageView() {
   }, [climate]);
 
   const technical = useMemo((): SensorTechnicalStats => {
-    const disconnected = latest.filter((r) => !isReadingRecent(r.timestamp)).length;
+    const disconnected = filteredLatest.filter((r) => !isReadingRecent(r.timestamp)).length;
     return {
-      activeSensors: latest.filter((r) => isReadingRecent(r.timestamp)).length,
+      activeSensors: filteredLatest.filter((r) => isReadingRecent(r.timestamp)).length,
       disconnectedSensors: disconnected,
       readingsToday,
       updateFrequency: "No disponible"
     };
-  }, [latest, readingsToday]);
+  }, [filteredLatest, readingsToday]);
 
   const compactStatus = useMemo((): SensorCompactStatusItem[] => {
-    return latest.map((r) => ({
+    return filteredLatest.map((r) => ({
       id: r.sensorId,
       title: formatSensorTypeTitle(r.type),
       subtitle: getSensorSubtitle(r.sensorId, r.timestamp),
@@ -274,30 +567,98 @@ export function SensoresPageView() {
       value: formatValueWithUnit(r.value, r.unit),
       online: isReadingRecent(r.timestamp)
     }));
-  }, [latest]);
+  }, [filteredLatest]);
 
   const deviceSelect = <IotDeviceSelector deviceIds={deviceIds} value={deviceId} onChange={setDeviceId} />;
+  const hasDeviceSelected = Boolean(deviceId);
+  const showFilteredReadings = filteredLatest.length > 0;
+  const reorganizeMainSection =
+    hasDeviceSelected && !loading && !showFilteredReadings;
+  const historicEmptyGlobal =
+    hasDeviceSelected && !loading && chartSeries.length === 0;
+  const hintFiltersBackend = "Comprueba MQTT, el backend o ajusta los filtros.";
+  const controlClass =
+    "rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-[10px] font-medium text-slate-900 outline-none transition hover:border-sky-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 dark:border-slate-600/80 dark:bg-[#0f1a2a] dark:text-slate-100 dark:hover:border-slate-500";
 
   return (
     <AppShell mainClassName="min-h-screen overflow-y-auto overflow-x-hidden">
       <SensorsPageHeader trailing={deviceSelect} />
 
+      <Card padding="sm" className="mb-3">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Filtros de visualización</p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <label className="flex flex-col gap-1 text-[10px] text-slate-500">
+            Tipo de sensor
+            <select className={controlClass} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+              <option value="all">Todos</option>
+              {deviceTypeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] text-slate-500">
+            Rango de tiempo
+            <select className={controlClass} value={timeRange} onChange={(e) => setTimeRange(e.target.value as TimeRangeKey)}>
+              <option value="24h">Últimas 24 horas</option>
+              <option value="7d">Últimos 7 días</option>
+              <option value="30d">Últimos 30 días</option>
+              <option value="custom">Personalizado (desde/hasta)</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] text-slate-500">
+            Estado
+            <select className={controlClass} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}>
+              <option value="all">Todos</option>
+              <option value="active">Activos</option>
+              <option value="inactive">Inactivos</option>
+            </select>
+          </label>
+        </div>
+        {timeRange === "custom" ? (
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-[10px] text-slate-500">
+              Desde
+              <input
+                type="datetime-local"
+                className={controlClass}
+                value={customDateRange.from}
+                onChange={(e) => setCustomDateRange((prev) => ({ ...prev, from: e.target.value }))}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[10px] text-slate-500">
+              Hasta
+              <input
+                type="datetime-local"
+                className={controlClass}
+                value={customDateRange.to}
+                onChange={(e) => setCustomDateRange((prev) => ({ ...prev, to: e.target.value }))}
+              />
+            </label>
+          </div>
+        ) : null}
+      </Card>
+
       {error ? (
         <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-200">{error}</p>
       ) : null}
 
-      <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {loading && deviceId
+      <div className="mt-3 grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {loading && hasDeviceSelected
           ? Array.from({ length: 4 }).map((_, i) => (
               <div key={`g-sk-${i}`} className="h-[220px] animate-pulse rounded-2xl bg-slate-800/40" />
             ))
-          : latest.length === 0
-            ? (
-                <div className="col-span-full rounded-2xl border border-dashed border-slate-600/50 bg-slate-900/30 px-4 py-8 text-center text-[11px] text-slate-500">
-                  Sin lecturas IoT para este dispositivo. Comprueba MQTT y el backend.
-                </div>
-              )
-            : latest.map((r) => {
+          : !showFilteredReadings
+            ? hasDeviceSelected ? (
+                <SensoresEmptyState
+                  variant="banner"
+                  className="border-slate-600/45 bg-slate-900/20"
+                  title="Sin lecturas IoT para este dispositivo."
+                  hint={hintFiltersBackend}
+                />
+              ) : null
+            : filteredLatest.map((r) => {
                 const g = readingToGaugeItem(r);
                 return g ? <SensorGaugeCard key={r.sensorId} sensor={g} /> : <SensorPlainReadingCard key={r.sensorId} reading={r} />;
               })}
@@ -356,23 +717,89 @@ export function SensoresPageView() {
         </div>
       ) : null}
 
-      <div className="mt-2 grid min-h-0 flex-1 grid-cols-1 gap-2.5 xl:grid-cols-12">
-        <div className="grid min-h-0 grid-cols-1 gap-2.5 md:grid-cols-2 xl:col-span-8">
-          {chartSeries.map((series, idx) => (
-            <SensorHistoryChartLazy key={series.id} series={series} mountDelayMs={idx * 120} />
-          ))}
-          {!loading && deviceId && chartSeries.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-600/50 bg-slate-900/20 px-3 py-6 text-center text-[10px] text-slate-500">
-              Sin series históricas en las últimas 24 h.
+      <section className="mt-3 relative z-0 grid grid-cols-1 gap-3 xl:grid-cols-12 xl:items-stretch">
+        {reorganizeMainSection ? (
+          <>
+            <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:col-span-12 xl:grid-cols-2">
+              <div className="relative min-w-0 flex">
+                <div className="min-h-0 w-full">
+                  <SensorTechnicalSummary stats={technical} />
+                </div>
+              </div>
+              <div className="relative min-w-0 flex">
+                <div className="min-h-0 w-full">
+                  <SensorStatusCompact sensors={compactStatus} />
+                </div>
+              </div>
             </div>
-          ) : null}
-        </div>
+            <div className="min-w-0 xl:col-span-12">
+              {historicEmptyGlobal ? (
+                <SensoresEmptyState
+                  variant="row"
+                  className="w-full border-slate-600/45 bg-slate-900/15"
+                  title="No se encontraron lecturas históricas para el rango seleccionado."
+                  hint={hintFiltersBackend}
+                />
+              ) : null}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="grid min-w-0 grid-cols-1 content-start gap-3 md:grid-cols-2 xl:col-span-8 xl:items-start">
+              {chartSeries.map((series, idx) => (
+                <div key={series.id} className="relative min-w-0">
+                  <SensorHistoryChartLazy series={series} mountDelayMs={idx * 120} />
+                </div>
+              ))}
+              {historicEmptyGlobal ? (
+                <div className="relative min-w-0 md:col-span-2">
+                  <SensoresEmptyState
+                    variant="row"
+                    className="w-full border-slate-600/45 bg-slate-900/15"
+                    title="No se encontraron lecturas históricas para el rango seleccionado."
+                    hint={hintFiltersBackend}
+                  />
+                </div>
+              ) : null}
+            </div>
 
-        <div className="grid min-h-0 grid-cols-1 gap-2.5 md:grid-cols-2 xl:col-span-4 xl:grid-cols-1">
-          <SensorTechnicalSummary stats={technical} />
-          <SensorStatusCompact sensors={compactStatus} />
-        </div>
-      </div>
+            <div className="grid min-h-0 min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:col-span-4 xl:grid-cols-1 xl:items-stretch xl:self-start">
+              <div className="relative min-w-0 flex">
+                <div className="min-h-0 w-full">
+                  <SensorTechnicalSummary stats={technical} />
+                </div>
+              </div>
+              <div className="relative min-w-0 flex">
+                <div className="min-h-0 w-full">
+                  <SensorStatusCompact sensors={compactStatus} />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+
+      {comparisonChartsToShow.length > 0 ? (
+        <section
+          className={
+            comparisonChartsToShow.length === 2
+              ? "mt-4 grid min-w-0 grid-cols-1 items-start gap-3 sm:grid-cols-2"
+              : "mt-4 grid min-w-0 grid-cols-1 items-start gap-3"
+          }
+        >
+          {comparisonChartsToShow.map((card) => (
+            <div key={card.id} className="relative min-w-0 w-full">
+              <SensorComparisonChart
+                title={card.title}
+                subtitle={card.subtitle}
+                unit={card.unit}
+                lines={card.lines}
+                data={card.data}
+              />
+            </div>
+          ))}
+        </section>
+      ) : null}
     </AppShell>
   );
 }

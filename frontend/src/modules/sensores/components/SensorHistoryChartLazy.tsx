@@ -29,9 +29,17 @@ interface SensorHistoryChartLazyProps {
   series: SensorHistorySeries;
   mountDelayMs?: number;
   eager?: boolean;
+  emptyPrimary?: string;
+  emptyHint?: string;
 }
 
-export function SensorHistoryChartLazy({ series, mountDelayMs = 0, eager = false }: SensorHistoryChartLazyProps) {
+export function SensorHistoryChartLazy({
+  series,
+  mountDelayMs = 0,
+  eager = false,
+  emptyPrimary,
+  emptyHint
+}: SensorHistoryChartLazyProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [shouldMountChart, setShouldMountChart] = useState(eager);
 
@@ -64,5 +72,13 @@ export function SensorHistoryChartLazy({ series, mountDelayMs = 0, eager = false
     };
   }, [eager, mountDelayMs]);
 
-  return <div ref={rootRef}>{shouldMountChart ? <SensorHistoryChart series={series} /> : <HistoryChartSkeleton />}</div>;
+  return (
+    <div ref={rootRef}>
+      {shouldMountChart ? (
+        <SensorHistoryChart series={series} emptyPrimary={emptyPrimary} emptyHint={emptyHint} />
+      ) : (
+        <HistoryChartSkeleton />
+      )}
+    </div>
+  );
 }
