@@ -7,6 +7,7 @@ import { buildIrrigationRecommendation, pickLatestSoilReading } from "@/modules/
 import type { SensorReadingResponse } from "@/lib/api/types";
 import { fetchDeviceIds, fetchLatestReadings } from "@/lib/api/sensors";
 import { TelemetryPageLayout } from "@/shared/components/layout/TelemetryPageLayout";
+import { IotDeviceSelector } from "@/shared/components/ui/IotDeviceSelector";
 
 export function RiegoPageView({ climate }: { climate: OpenMeteoClimateBundle }) {
   const [deviceIds, setDeviceIds] = useState<string[]>([]);
@@ -63,24 +64,7 @@ export function RiegoPageView({ climate }: { climate: OpenMeteoClimateBundle }) 
     });
   }, [latest, climate.rainProbabilityNow]);
 
-  const deviceSelect = (
-    <label className="flex items-center gap-1.5 text-[10px] text-slate-400">
-      <span className="hidden sm:inline">Dispositivo</span>
-      <select
-        className="max-w-[10rem] rounded-lg border border-slate-600/80 bg-[#0f1a2a] px-2 py-1 text-[10px] font-medium text-slate-100 shadow-inner"
-        value={deviceId}
-        onChange={(e) => setDeviceId(e.target.value)}
-        disabled={deviceIds.length === 0}
-      >
-        {deviceIds.length === 0 ? <option value="">—</option> : null}
-        {deviceIds.map((id) => (
-          <option key={id} value={id}>
-            {id}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
+  const deviceSelect = <IotDeviceSelector deviceIds={deviceIds} value={deviceId} onChange={setDeviceId} />;
 
   return (
     <TelemetryPageLayout

@@ -17,11 +17,13 @@ import {
   readingToSummaryMetric,
   selectTopSummaryReadings
 } from "@/modules/dashboard/lib/iotPresentation";
+import { buildAlertsFromReadingsAndClimate } from "@/modules/dashboard/lib/buildAlertsFromReadingsAndClimate";
 import { buildIrrigationRecommendation, pickLatestSoilReading } from "@/modules/dashboard/lib/irrigationRecommendation";
 import type { SensorReadingResponse } from "@/lib/api/types";
 import { fetchDeviceIds, fetchLatestReadings, fetchReadingsHistory } from "@/lib/api/sensors";
 import type { SoilHumidityPoint } from "@/modules/dashboard/types";
 import { AppShell } from "@/shared/components/layout/AppShell";
+import { IotDeviceSelector } from "@/shared/components/ui/IotDeviceSelector";
 import { LivePageHeader } from "@/shared/components/ui/LivePageHeader";
 import { Card } from "@/shared/components/ui/Card";
 
@@ -144,23 +146,10 @@ export function DashboardPageView({ climate }: { climate: OpenMeteoClimateBundle
     });
   }, [latest, climate.rainProbabilityNow]);
 
+  const alerts = useMemo(() => buildAlertsFromReadingsAndClimate(latest, climate), [latest, climate]);
+
   const deviceSelect = (
-    <label className="flex items-center gap-1.5 text-[10px] text-slate-400">
-      <span className="hidden sm:inline">Dispositivo</span>
-      <select
-        className="max-w-[10rem] rounded-lg border border-slate-600/80 bg-[#0f1a2a] px-2 py-1 text-[10px] font-medium text-slate-100 shadow-inner"
-        value={deviceId}
-        onChange={(e) => setDeviceId(e.target.value)}
-        disabled={deviceIds.length === 0}
-      >
-        {deviceIds.length === 0 ? <option value="">—</option> : null}
-        {deviceIds.map((id) => (
-          <option key={id} value={id}>
-            {id}
-          </option>
-        ))}
-      </select>
-    </label>
+    <IotDeviceSelector deviceIds={deviceIds} value={deviceId} onChange={setDeviceId} />
   );
 
   return (
@@ -219,7 +208,7 @@ export function DashboardPageView({ climate }: { climate: OpenMeteoClimateBundle
         </div>
         <div className="flex min-h-0 flex-col gap-3 lg:col-span-3">
           <IrrigationRecommendation irrigation={irrigation} />
-          <AlertPanel alerts={[]} />
+          <AlertPanel alerts={alerts} variant="embedded" />
         </div>
       </div>
     </AppShell>

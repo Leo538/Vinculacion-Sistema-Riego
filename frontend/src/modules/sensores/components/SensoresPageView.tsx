@@ -31,6 +31,7 @@ import {
 import type { SensorBarIndicatorItem, SensorCompactStatusItem, SensorHistorySeries, SensorLevel } from "@/modules/sensores/types";
 import type { SensorTechnicalStats } from "@/modules/sensores/types";
 import { AppShell } from "@/shared/components/layout/AppShell";
+import { IotDeviceSelector } from "@/shared/components/ui/IotDeviceSelector";
 import { Card } from "@/shared/components/ui/Card";
 
 const CHART_COLORS = ["#38bdf8", "#22C55E", "#a78bfa", "#f472b6"];
@@ -269,24 +270,7 @@ export function SensoresPageView() {
     }));
   }, [latest]);
 
-  const deviceSelect = (
-    <label className="flex items-center gap-1.5 text-[10px] text-slate-400">
-      <span className="hidden sm:inline">Dispositivo</span>
-      <select
-        className="max-w-[10rem] rounded-lg border border-slate-600/80 bg-[#0f1a2a] px-2 py-1 text-[10px] font-medium text-slate-100 shadow-inner"
-        value={deviceId}
-        onChange={(e) => setDeviceId(e.target.value)}
-        disabled={deviceIds.length === 0}
-      >
-        {deviceIds.length === 0 ? <option value="">—</option> : null}
-        {deviceIds.map((id) => (
-          <option key={id} value={id}>
-            {id}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
+  const deviceSelect = <IotDeviceSelector deviceIds={deviceIds} value={deviceId} onChange={setDeviceId} />;
 
   return (
     <AppShell mainClassName="min-h-screen overflow-y-auto overflow-x-hidden">
@@ -299,7 +283,7 @@ export function SensoresPageView() {
       <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {loading && deviceId
           ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={`g-sk-${i}`} className="h-[258px] animate-pulse rounded-2xl bg-slate-800/40" />
+              <div key={`g-sk-${i}`} className="h-[220px] animate-pulse rounded-2xl bg-slate-800/40" />
             ))
           : latest.length === 0
             ? (

@@ -36,7 +36,7 @@ export function SensorGaugeCard({ sensor }: { sensor: SensorGaugeItem }) {
         : "border-rose-500/60 bg-rose-500/10 text-rose-300";
 
   return (
-    <Card className="flex min-h-[258px] flex-col gap-3 !p-6">
+    <Card className="flex flex-col gap-2 !px-6 !pb-5 !pt-5">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{sensor.label}</p>
@@ -51,8 +51,8 @@ export function SensorGaugeCard({ sensor }: { sensor: SensorGaugeItem }) {
         <IconBox icon={Icon} className="size-8" iconSizeClassName="size-3.5" rounded="full" />
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-end pb-1">
-        <div className="relative mx-auto mb-1 h-[150px] w-[260px] max-w-full">
+      <div className="flex min-h-0 flex-col items-center pt-1">
+        <div className="relative mx-auto mb-1 h-[134px] w-[232px] max-w-full shrink-0">
           <svg viewBox="0 0 260 150" className="absolute inset-0 h-full w-full" aria-hidden>
             <path
               d="M30 125 A100 100 0 0 1 230 125"
@@ -88,7 +88,7 @@ export function SensorGaugeCard({ sensor }: { sensor: SensorGaugeItem }) {
           </div>
         </div>
 
-        <div className="flex shrink-0 justify-center pt-3 pb-1">
+        <div className="flex shrink-0 justify-center pt-2 pb-0.5">
           <span className={`rounded-full border px-3 py-1 text-xs font-semibold shadow-sm ${badgeClass}`}>{status}</span>
         </div>
       </div>
