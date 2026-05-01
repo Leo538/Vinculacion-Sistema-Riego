@@ -31,6 +31,8 @@ export interface CurrentWeather {
 
 export interface ForecastDay {
   day: string;
+  /** ISO YYYY-MM-DD (Open-Meteo daily) cuando está disponible. */
+  isoDate?: string;
   minTemp: number;
   maxTemp: number;
   condition: "sunny" | "partly" | "cloudy" | "rain" | "storm";
