@@ -271,7 +271,6 @@ export function RiegoPageView({ climate }: { climate: OpenMeteoClimateBundle }) 
       subtitle="Recomendación IoT + Open‑Meteo (Tisaleo) · gráficas según filtros"
       headerTrailing={deviceSelect}
       wideContent
-      note="La recomendación principal usa la última lectura de humedad de suelo del dispositivo que cumpla los filtros (tipo / activo‑inactivo) y la probabilidad actual de lluvia Open‑Meteo. Las tendencias siguen ese mismo subset en el histórico cargado (30 días)."
     >
       {error ? (
         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-200">{error}</p>

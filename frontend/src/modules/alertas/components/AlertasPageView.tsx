@@ -89,7 +89,6 @@ export function AlertasPageView({ climate }: { climate: OpenMeteoClimateBundle }
       subtitle="Monitores con umbrales sobre lecturas IoT (Spring Boot/API) y clima vivo de Open‑Meteo"
       headerTrailing={headerTrailing}
       wideContent
-      note="Cada vigilancia se basa en las últimas lecturas del dispositivo seleccionado y el modelo Open‑Meteo (Tisaleo, Ecuador). La humedad exterior, la probabilidad de lluvia y la presión provienen de Open‑Meteo; la humedad de suelo, del backend vía MQTT."
     >
       {error ? (
         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-200">{error}</p>
