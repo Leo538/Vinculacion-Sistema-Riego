@@ -65,3 +65,14 @@ export const formatSensorType = formatSensorTypeTitle;
 export function getSensorDisplayLabels(type: string, sensorId: string, timestampIso: string): { title: string; subtitle: string } {
   return { title: formatSensorTypeTitle(type), subtitle: getSensorSubtitle(sensorId, timestampIso) };
 }
+
+/** Encabezado de gráfica histórica 24 h (p. ej. /sensores): reusa `formatSensorTypeTitle`. */
+export function formatSensorHistoryChartTitle(type: string): string {
+  const t = `${type ?? ""}`.trim();
+  const base = t ? formatSensorTypeTitle(t) : "Sensor";
+  return `${base} (24 h)`;
+}
+
+export function formatSensorHistoryChartSubtitle(sensorId: string): string {
+  return `${sensorId} · Backend IoT · últimas 24 h`;
+}
