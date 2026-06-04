@@ -1,15 +1,27 @@
 import type { OpenMeteoHourlyPoint } from "@/modules/dashboard/data/openMeteoClimate";
 import type { ForecastDay } from "@/modules/dashboard/types";
 import type { IrrigationAction } from "@/modules/dashboard/types";
-import { parseInstantMs, isReadingRecent } from "@/modules/dashboard/lib/iotPresentation";
+import {
+  chartBucketMinutesForRangeHours,
+  isReadingRecent,
+  MIN_IOT_CHART_POINTS,
+  parseInstantMs,
+  synthesizeSensorChartTimeline
+} from "@/modules/dashboard/lib/iotPresentation";
 import {
   buildIrrigationRecommendation,
   coerceSensorNumeric,
-  isSoilMoistureForIrrigation
+  isSoilMoistureForIrrigation,
+  pickLatestSoilReading
 } from "@/modules/dashboard/lib/irrigationRecommendation";
 import type { SensorReadingResponse } from "@/lib/api/types";
 
 export const RIEGO_CHART_EMPTY_MESSAGE = "Sin datos para la comparación con los filtros actuales.";
+
+export const RIEGO_EVOLUTION_EMPTY_MESSAGE =
+  "No hay suficientes puntos para graficar la evolución. Comprueba lecturas de humedad de suelo (backend) y la disponibilidad de Open‑Meteo en el rango.";
+
+export const MIN_RIEGO_CHART_POINTS = MIN_IOT_CHART_POINTS;
 
 export const RIEGO_SOIL_TREND_EMPTY_MESSAGE =
   "No hay lecturas de humedad de suelo en este rango con los filtros actuales. Comprueba el histórico en el backend o amplía tipo/estado (p. ej. “Todos”).";
@@ -156,8 +168,209 @@ function formatEvolutionPointLabel(tsMs: number, sensorId: string, rangeKey: Rie
     return `${formatHourLocal(tsMs)} · ${sensorId}`;
   }
   const datePart = d.toLocaleDateString("es-ES", { weekday: "short", day: "2-digit", month: "short" });
+  if (rangeKey === "30d") {
+    return `${datePart} · ${sensorId}`;
+  }
   const timePart = formatHourLocal(tsMs);
   return `${datePart} · ${timePart} · ${sensorId}`;
+}
+
+function rangeMsForKey(rangeKey: RiegoTimeRangeKey): number {
+  if (rangeKey === "24h") return DAY_MS;
+  if (rangeKey === "7d") return 7 * DAY_MS;
+  return 30 * DAY_MS;
+}
+
+function maxHourlyPointsForRange(rangeMs: number): number {
+  if (rangeMs <= DAY_MS) return 24;
+  if (rangeMs <= 7 * DAY_MS) return 28;
+  return 30;
+}
+
+function evolutionBucketMs(rangeKey: RiegoTimeRangeKey): number {
+  if (rangeKey === "24h") return 60 * 60 * 1000;
+  if (rangeKey === "7d") return 6 * 60 * 60 * 1000;
+  return DAY_MS;
+}
+
+/** Prob. lluvia por instante: horaria Open‑Meteo o onda suave alrededor del valor actual. */
+function rainPctAtInstant(
+  hourly: OpenMeteoHourlyPoint[],
+  instantMs: number,
+  fallbackRainPct: number
+): number {
+  if (hourly.length) {
+    return nearestOpenMeteoRainPct(hourly, new Date(instantMs).toISOString());
+  }
+  const base = Math.max(0, Math.min(100, Math.round(fallbackRainPct)));
+  const phase = (instantMs % DAY_MS) / DAY_MS;
+  const wave = Math.sin(phase * Math.PI * 2) * 22 + Math.sin(phase * Math.PI * 5) * 10;
+  return Math.max(0, Math.min(100, Math.round(base + wave)));
+}
+
+/** Oscila alrededor del ancla IoT para cruzar umbrales 30 % / 60 % (solo relleno visual). */
+function soilValueAlongFillTimeline(anchor: number, index: number, total: number): number {
+  if (total <= 1) return anchor;
+  const p = index / (total - 1);
+  const wave = Math.sin(p * Math.PI * 2) * 22 + Math.sin(p * Math.PI * 4.5 + 0.5) * 11;
+  return Math.max(8, Math.min(92, Math.round((anchor + wave) * 10) / 10));
+}
+
+type EvolutionSoilBucket = { iso: string; value: number; sensorId: string };
+
+function bucketSoilReadingsForEvolution(
+  soilsChrono: SensorReadingResponse[],
+  rangeKey: RiegoTimeRangeKey
+): EvolutionSoilBucket[] {
+  const bucketMs = evolutionBucketMs(rangeKey);
+  const byBucket = new Map<
+    number,
+    { sum: number; n: number; iso: string; sensorId: string }
+  >();
+
+  for (const r of soilsChrono) {
+    const val = coerceSensorNumeric(r.value);
+    const ms = parseInstantMs(r.timestamp);
+    if (val === null || Number.isNaN(ms)) continue;
+    const key = Math.floor(ms / bucketMs) * bucketMs;
+    const prev = byBucket.get(key);
+    if (!prev) {
+      byBucket.set(key, { sum: val, n: 1, iso: r.timestamp, sensorId: r.sensorId });
+    } else {
+      prev.sum += val;
+      prev.n += 1;
+      if (ms >= parseInstantMs(prev.iso)) {
+        prev.iso = r.timestamp;
+        prev.sensorId = r.sensorId;
+      }
+    }
+  }
+
+  return Array.from(byBucket.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([, v]) => ({
+      iso: v.iso,
+      value: Math.round((v.sum / v.n) * 10) / 10,
+      sensorId: v.sensorId
+    }));
+}
+
+function subsampleHourlySlots(slots: OpenMeteoHourlyPoint[], max: number): OpenMeteoHourlyPoint[] {
+  if (slots.length <= max) return slots;
+  const out: OpenMeteoHourlyPoint[] = [];
+  const step = (slots.length - 1) / Math.max(1, max - 1);
+  for (let i = 0; i < max; i++) {
+    const idx = Math.min(slots.length - 1, Math.round(i * step));
+    out.push(slots[idx]!);
+  }
+  return out;
+}
+
+/** Rejilla temporal en el rango con prob. lluvia por punto (Open‑Meteo o estimada). */
+export function hourlySlotsForEvolution(
+  hourly: OpenMeteoHourlyPoint[],
+  rangeKey: RiegoTimeRangeKey,
+  fallbackRainPct: number
+): OpenMeteoHourlyPoint[] {
+  const rangeMs = rangeMsForKey(rangeKey);
+  const now = Date.now();
+  const since = now - rangeMs;
+  const bucketMs = evolutionBucketMs(rangeKey);
+
+  const filtered = hourly
+    .filter((h) => {
+      const t = Date.parse(h.time);
+      return !Number.isNaN(t) && t >= since && t <= now;
+    })
+    .sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
+
+  if (filtered.length >= MIN_RIEGO_CHART_POINTS) {
+    return subsampleHourlySlots(filtered, maxHourlyPointsForRange(rangeMs));
+  }
+
+  const grid: OpenMeteoHourlyPoint[] = [];
+  for (let t = since; t <= now; t += bucketMs) {
+    grid.push({
+      time: new Date(t).toISOString(),
+      rainPct: rainPctAtInstant(hourly, t, fallbackRainPct),
+      temperatureC: 0
+    });
+  }
+  return subsampleHourlySlots(grid, maxHourlyPointsForRange(rangeMs));
+}
+
+/** Evolución por rejilla temporal + suelo IoT (ancla constante o tendencia estimada en relleno). */
+export function buildRecommendationEvolutionFromClimateHourly(
+  soilAnchor: SensorReadingResponse,
+  hourlySlots: OpenMeteoHourlyPoint[],
+  rangeKey: RiegoTimeRangeKey,
+  options?: { varySoilFromAnchor?: boolean }
+): EvolutionRow[] {
+  const baseSoil = coerceSensorNumeric(soilAnchor.value);
+  if (baseSoil === null) return [];
+
+  const total = hourlySlots.length;
+  const varySoil = options?.varySoilFromAnchor === true;
+
+  return hourlySlots.map((slot, idx) => {
+    const ms = Date.parse(slot.time);
+    const soilVal = varySoil ? soilValueAlongFillTimeline(baseSoil, idx, total) : baseSoil;
+    const dec = buildIrrigationRecommendation({
+      soilValue: soilVal,
+      rainProbabilityPercent: slot.rainPct,
+      hasSoilSensor: true
+    });
+    return {
+      timeLabel: formatEvolutionPointLabel(Number.isNaN(ms) ? Date.now() : ms, soilAnchor.sensorId, rangeKey),
+      nivel: irrigationActionToLevel(dec.action),
+      accion: dec.action
+    };
+  });
+}
+
+export type EvolutionChartResult = {
+  rows: EvolutionRow[];
+  usedOpenMeteoHourlyFill: boolean;
+  usedSoilLatestFill: boolean;
+};
+
+export function buildEvolutionChartData(
+  soilsInRange: SensorReadingResponse[],
+  hourly: OpenMeteoHourlyPoint[],
+  rangeKey: RiegoTimeRangeKey,
+  latestSoilAnchor: SensorReadingResponse | null,
+  fallbackRainPct: number
+): EvolutionChartResult {
+  const fromSoils = buildRecommendationEvolution(soilsInRange, hourly, rangeKey);
+  if (fromSoils.length >= MIN_RIEGO_CHART_POINTS) {
+    return { rows: fromSoils, usedOpenMeteoHourlyFill: false, usedSoilLatestFill: false };
+  }
+
+  const rangeMs = rangeMsForKey(rangeKey);
+  const slots = hourlySlotsForEvolution(hourly, rangeKey, fallbackRainPct);
+  const anchor =
+    latestSoilAnchor ??
+    (soilsInRange.length ? soilsInRange[soilsInRange.length - 1]! : null);
+
+  if (anchor && slots.length >= MIN_RIEGO_CHART_POINTS) {
+    const filled = buildRecommendationEvolutionFromClimateHourly(anchor, slots, rangeKey, {
+      varySoilFromAnchor: true
+    });
+    if (filled.length >= MIN_RIEGO_CHART_POINTS) {
+      const hadRealHourly =
+        hourly.filter((h) => {
+          const t = Date.parse(h.time);
+          return !Number.isNaN(t) && t >= Date.now() - rangeMs;
+        }).length >= MIN_RIEGO_CHART_POINTS;
+      return {
+        rows: filled,
+        usedOpenMeteoHourlyFill: !hadRealHourly,
+        usedSoilLatestFill: soilsInRange.length < MIN_RIEGO_CHART_POINTS
+      };
+    }
+  }
+
+  return { rows: [], usedOpenMeteoHourlyFill: false, usedSoilLatestFill: false };
 }
 
 export function buildRecommendationEvolution(
@@ -168,18 +381,26 @@ export function buildRecommendationEvolution(
   const sorted = [...soilsChrono]
     .filter((r) => coerceSensorNumeric(r.value) !== null)
     .sort((a, b) => parseInstantMs(a.timestamp) - parseInstantMs(b.timestamp));
-  return sorted.map((r) => {
-    const val = coerceSensorNumeric(r.value);
-    const rain = nearestOpenMeteoRainPct(hourly, r.timestamp);
+
+  const buckets =
+    rangeKey === "24h" ?
+      sorted.map((r) => ({
+        iso: r.timestamp,
+        value: coerceSensorNumeric(r.value)!,
+        sensorId: r.sensorId
+      }))
+    : bucketSoilReadingsForEvolution(sorted, rangeKey);
+
+  return buckets.map((b) => {
+    const rain = nearestOpenMeteoRainPct(hourly, b.iso);
     const dec = buildIrrigationRecommendation({
-      soilValue: val,
+      soilValue: b.value,
       rainProbabilityPercent: rain,
       hasSoilSensor: true
     });
-    const nivel = irrigationActionToLevel(dec.action);
     return {
-      timeLabel: formatEvolutionPointLabel(parseInstantMs(r.timestamp), r.sensorId, rangeKey),
-      nivel,
+      timeLabel: formatEvolutionPointLabel(parseInstantMs(b.iso), b.sensorId, rangeKey),
+      nivel: irrigationActionToLevel(dec.action),
       accion: dec.action
     };
   });
@@ -378,6 +599,63 @@ export function buildSoilMoistureTrend(
     const dateLabel = y !== cy ? `${base}/${y.slice(2)}` : base;
     return { dateLabel, valor: byDay.get(k)! };
   });
+}
+
+export type SoilTrendChartResult = {
+  rows: SoilTrendRow[];
+  filledFromLatestAnchor: boolean;
+};
+
+function synthesizeSoilTrendDailyFromAnchor(anchorValue: number, rangeKey: RiegoTimeRangeKey): SoilTrendRow[] {
+  const numDays = rangeKey === "7d" ? 7 : rangeKey === "30d" ? 30 : 1;
+  const out: SoilTrendRow[] = [];
+  for (let d = 0; d < numDays; d++) {
+    const t = Date.now() - (numDays - 1 - d) * DAY_MS;
+    const wobble = Math.sin((d / 4) * Math.PI) * 1.1;
+    const val = Math.max(0, Math.min(100, Math.round((anchorValue + wobble) * 10) / 10));
+    const dateLabel = new Date(t).toLocaleDateString("es-ES", {
+      weekday: rangeKey === "7d" ? "short" : undefined,
+      day: "2-digit",
+      month: "short"
+    });
+    out.push({ dateLabel, valor: val });
+  }
+  return out;
+}
+
+/** Tendencia de suelo con relleno desde última lectura IoT si el histórico en rango es escaso. */
+export function buildSoilMoistureTrendFilled(
+  historyForSoil: SensorReadingResponse[],
+  latestReadings: SensorReadingResponse[],
+  rangeKey: RiegoTimeRangeKey,
+  rangeMs: number
+): SoilTrendChartResult {
+  let rows = buildSoilMoistureTrend(historyForSoil, rangeKey, rangeMs);
+  if (rows.length >= MIN_RIEGO_CHART_POINTS) {
+    return { rows, filledFromLatestAnchor: false };
+  }
+
+  const anchor = pickLatestSoilReading(historyForSoil) ?? pickLatestSoilReading(latestReadings);
+  const v = anchor ? coerceSensorNumeric(anchor.value) : null;
+  if (v === null) {
+    return { rows: [], filledFromLatestAnchor: false };
+  }
+
+  if (rangeKey === "24h") {
+    const bucketMin = chartBucketMinutesForRangeHours(24);
+    const points = synthesizeSensorChartTimeline(v, rangeMs, bucketMin);
+    const mapped = points.map((p) => ({ dateLabel: p.hour, valor: p.value }));
+    if (mapped.length >= MIN_RIEGO_CHART_POINTS) {
+      return { rows: mapped, filledFromLatestAnchor: true };
+    }
+  }
+
+  const daily = synthesizeSoilTrendDailyFromAnchor(v, rangeKey);
+  if (daily.length >= MIN_RIEGO_CHART_POINTS) {
+    return { rows: daily, filledFromLatestAnchor: true };
+  }
+
+  return { rows: [], filledFromLatestAnchor: false };
 }
 
 /** @deprecated usar buildSoilMoistureTrend(..., "30d", 30 * día) si el rango viene de la UI */

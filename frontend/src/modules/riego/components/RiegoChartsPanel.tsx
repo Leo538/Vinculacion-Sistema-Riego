@@ -16,7 +16,11 @@ import {
 } from "recharts";
 import { Card } from "@/shared/components/ui/Card";
 import type { DailyMeteoRecoRow, EvolutionRow, RiegoTimeRangeKey, SoilTrendRow } from "@/modules/riego/lib/buildRiegoChartData";
-import { RIEGO_CHART_EMPTY_MESSAGE, irrigationAxisLabel } from "@/modules/riego/lib/buildRiegoChartData";
+import {
+  MIN_RIEGO_CHART_POINTS,
+  RIEGO_CHART_EMPTY_MESSAGE,
+  irrigationAxisLabel
+} from "@/modules/riego/lib/buildRiegoChartData";
 
 const GRID_STYLE = { stroke: "#334155", strokeOpacity: 0.2 };
 const tickStyle = { fill: "#64748b", fontSize: 10 };
@@ -156,10 +160,33 @@ function EvolutionTooltip({ active, payload }: { active?: boolean; payload?: Arr
   return (
     <div className="min-w-[160px] rounded-lg border border-slate-600/60 bg-[#0f1a2a] px-2.5 py-2 text-[10px] shadow-xl shadow-black/35">
       <p className="text-slate-400">{p.timeLabel}</p>
-      <p className="mt-1 font-semibold text-white">{p.accion}</p>
+      <p className="mt-1 text-[10px] text-slate-500">Recomendación de riego</p>
+      <p className="mt-0.5 font-semibold text-white">{p.accion}</p>
       <p className="mt-1 text-slate-500">
-        Índice: <span className="tabular-nums text-slate-300">{p.nivel}</span>
+        Nivel: <span className="tabular-nums text-slate-300">{irrigationAxisLabel(p.nivel)}</span>
+        {" "}
+        <span className="text-slate-600">({p.nivel})</span>
       </p>
+    </div>
+  );
+}
+
+function SoilTrendTooltip({
+  active,
+  payload,
+  label
+}: {
+  active?: boolean;
+  payload?: Array<{ value?: number }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const v = payload[0]?.value;
+  return (
+    <div className="min-w-[140px] rounded-lg border border-slate-600/60 bg-[#0f1a2a] px-2.5 py-2 text-[10px] shadow-xl shadow-black/35">
+      <p className="text-slate-400">{label ? `Momento · ${label}` : "—"}</p>
+      <p className="mt-1 text-lg font-semibold text-white">{typeof v === "number" ? `${v} %` : "—"}</p>
+      <p className="mt-1 text-emerald-400/95">Humedad de suelo (media)</p>
     </div>
   );
 }
@@ -167,16 +194,19 @@ function EvolutionTooltip({ active, payload }: { active?: boolean; payload?: Arr
 export function RiegoChartsPanel(props: {
   evolution: EvolutionRow[];
   evolutionRangeKey: RiegoTimeRangeKey;
+  evolutionEmptyMessage: string;
+  evolutionSubtitleNote?: string;
   weekly: DailyMeteoRecoRow[];
   soilTrend: SoilTrendRow[];
   soilTrendEmptyMessage: string;
+  soilTrendSubtitleNote?: string;
   soilTrendInsufficient: boolean;
   soilTrendInsufficientMessage: string;
 }) {
-  const evolutionEmpty = props.evolution.length === 0;
+  const evolutionEmpty = props.evolution.length < MIN_RIEGO_CHART_POINTS;
   const weeklyMeteoEmpty = props.weekly.length === 0;
-  const soilEmpty = props.soilTrend.length === 0;
-  const evolutionSubtitle = `${EVOLUTION_RANGE_COPY[props.evolutionRangeKey]} · prob. lluvia horaria Open‑Meteo (si falta pronóstico, se trata como 0 %).`;
+  const soilEmpty = props.soilTrend.length < MIN_RIEGO_CHART_POINTS;
+  const evolutionSubtitle = `${EVOLUTION_RANGE_COPY[props.evolutionRangeKey]} · prob. lluvia horaria Open‑Meteo (si falta pronóstico, se trata como 0 %).${props.evolutionSubtitleNote ?? ""}`;
 
   const soilTrendSubtitleParts: Record<RiegoTimeRangeKey, string> = {
     "24h": "Últimas 24 h · promedio por hora local (humedad de suelo IoT)",
@@ -197,6 +227,7 @@ export function RiegoChartsPanel(props: {
         title="Evolución de la recomendación de riego"
         subtitle={evolutionSubtitle}
         empty={evolutionEmpty}
+        emptyMessage={props.evolutionEmptyMessage}
       >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={props.evolution} margin={{ top: 6, right: 8, bottom: 4, left: 0 }}>
@@ -213,13 +244,14 @@ export function RiegoChartsPanel(props: {
             />
             <Tooltip content={<EvolutionTooltip />} />
             <Line
-              type="stepAfter"
+              type="monotone"
               dataKey="nivel"
               name="Recomendación"
               stroke="#38bdf8"
               strokeWidth={2.5}
               dot={{ r: 3, stroke: "#bae6fd", fill: "#0ea5e9" }}
               activeDot={{ r: 5 }}
+              connectNulls
             />
           </LineChart>
         </ResponsiveContainer>
@@ -243,9 +275,12 @@ export function RiegoChartsPanel(props: {
                 if (!row) return null;
                 return (
                   <div className="rounded-lg border border-slate-600/60 bg-[#0f1a2a] px-2.5 py-2 text-[10px] shadow-xl shadow-black/35">
-                    <p className="text-slate-400">{row.dayShort}</p>
-                    <p className="mt-1 text-sky-300">Lluvia max. {row.lluviaPct}%</p>
-                    <p className="text-orange-300">Temp. media · {row.tempMedia} °C</p>
+                    <p className="font-medium text-slate-300">{row.dayShort}</p>
+                    <p className="mt-1 text-sky-300/95">Prob. máx. de lluvia · {row.lluviaPct} %</p>
+                    <p className="mt-0.5 text-orange-300/95">Temperatura media · {row.tempMedia} °C</p>
+                    {row.recomendacion ? (
+                      <p className="mt-1 text-emerald-300/90">Recomendación · {row.recomendacion}</p>
+                    ) : null}
                   </div>
                 );
               }}
@@ -291,7 +326,7 @@ export function RiegoChartsPanel(props: {
 
       <ChartShell
         title="Tendencia de humedad de suelo"
-        subtitle={soilTrendSubtitleParts[props.evolutionRangeKey]}
+        subtitle={`${soilTrendSubtitleParts[props.evolutionRangeKey]}${props.soilTrendSubtitleNote ?? ""}`}
         empty={soilEmpty}
         emptyMessage={props.soilTrendEmptyMessage}
         belowChart={soilTrendBelowChart}
@@ -301,18 +336,8 @@ export function RiegoChartsPanel(props: {
             <CartesianGrid {...GRID_STYLE} vertical={false} />
             <XAxis dataKey="dateLabel" tick={tickStyle} tickLine={false} axisLine={false} interval={props.evolutionRangeKey === "30d" ? 2 : props.evolutionRangeKey === "7d" ? 0 : "preserveStartEnd"} minTickGap={16} />
             <YAxis width={42} domain={["auto", "auto"]} tick={tickStyle} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
-            <Tooltip
-              formatter={(value: number) => [`${value}%`, "Humedad suelo media"]}
-              labelFormatter={(l) => `Momento · ${l}`}
-              contentStyle={{
-                borderRadius: 8,
-                background: "#0f1a2a",
-                border: "1px solid rgba(100,116,139,0.5)",
-                fontSize: "10px",
-                padding: "8px"
-              }}
-            />
-            <Line type="monotone" dataKey="valor" name="% suelo" stroke="#22c55e" strokeWidth={2.2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+            <Tooltip content={<SoilTrendTooltip />} />
+            <Line type="monotone" dataKey="valor" name="Humedad de suelo" stroke="#22c55e" strokeWidth={2.2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
           </LineChart>
         </ResponsiveContainer>
       </ChartShell>

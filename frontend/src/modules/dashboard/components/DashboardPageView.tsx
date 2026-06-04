@@ -10,8 +10,14 @@ import { SummaryCard } from "@/modules/dashboard/components/SummaryCard";
 import { WeatherPanel } from "@/modules/dashboard/components/WeatherPanel";
 import type { OpenMeteoClimateBundle } from "@/modules/dashboard/data/openMeteoClimate";
 import {
-  historyToChartPoints,
+  buildSensorChartPoints,
+  CHART_WINDOW_PRESETS,
+  chartBucketMinutesForRangeHours,
+  chartSubtitleWithBucket,
+  DEFAULT_IOT_CHART_RANGE_HOURS,
+  DEFAULT_IOT_CHART_RANGE_MS,
   isSoilMoistureCandidate,
+  MIN_IOT_CHART_POINTS,
   pickSoilSensorId,
   readingToDashboardSensorRow,
   readingToSummaryMetric,
@@ -25,6 +31,7 @@ import type { SoilHumidityPoint } from "@/modules/dashboard/types";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { IotDeviceSelector } from "@/shared/components/ui/IotDeviceSelector";
 import { LivePageHeader } from "@/shared/components/ui/LivePageHeader";
+import { formatChartTooltipMetricLabel } from "@/shared/lib/sensorDisplay";
 import { Card } from "@/shared/components/ui/Card";
 
 export function DashboardPageView({ climate }: { climate: OpenMeteoClimateBundle }) {
@@ -32,8 +39,8 @@ export function DashboardPageView({ climate }: { climate: OpenMeteoClimateBundle
   const [deviceId, setDeviceId] = useState<string>("");
   const [latest, setLatest] = useState<SensorReadingResponse[]>([]);
   const [chartPoints, setChartPoints] = useState<SoilHumidityPoint[]>([]);
-  const [chartTitle, setChartTitle] = useState("Histórico IoT (24 h)");
-  const [chartSubtitle, setChartSubtitle] = useState("Últimas 24 h · sensor prioritario");
+  const [chartTitle, setChartTitle] = useState(`Histórico IoT (${DEFAULT_IOT_CHART_RANGE_HOURS} h)`);
+  const [chartSubtitle, setChartSubtitle] = useState(`Últimas ${DEFAULT_IOT_CHART_RANGE_HOURS} h · sensor prioritario`);
   const [chartValueLabel, setChartValueLabel] = useState("Valor");
   const [chartUnit, setChartUnit] = useState("%");
   const [loading, setLoading] = useState(true);
@@ -64,7 +71,7 @@ export function DashboardPageView({ climate }: { climate: OpenMeteoClimateBundle
       if (!devId) {
         setLatest([]);
         setChartPoints([]);
-        setChartTitle("Histórico IoT (24 h)");
+        setChartTitle(`Histórico IoT (${DEFAULT_IOT_CHART_RANGE_HOURS} h)`);
         setChartSubtitle("Selecciona un dispositivo con datos.");
         return;
       }
@@ -75,34 +82,79 @@ export function DashboardPageView({ climate }: { climate: OpenMeteoClimateBundle
         setLatest(readings);
 
         const soilSid = pickSoilSensorId(readings);
-        const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        const to = new Date().toISOString();
-
         const targetSid = soilSid ?? readings[0]?.sensorId;
         if (targetSid) {
-          const page = await fetchReadingsHistory({
-            deviceId: devId,
-            sensorId: targetSid,
-            from,
-            to,
-            size: 500,
-            page: 0
-          });
-          const pts = historyToChartPoints(page.content);
+          let pts: SoilHumidityPoint[] = [];
+          let chartHours = DEFAULT_IOT_CHART_RANGE_HOURS;
+          let bucketMinutes = chartBucketMinutesForRangeHours(DEFAULT_IOT_CHART_RANGE_HOURS);
+          let filledFromLatest = false;
+          let lastHistory: SensorReadingResponse[] = [];
+          const meta = readings.find((r) => r.sensorId === targetSid);
+
+          for (const preset of CHART_WINDOW_PRESETS) {
+            const rangeMs = preset.hours * 60 * 60 * 1000;
+            const from = new Date(Date.now() - rangeMs).toISOString();
+            const to = new Date().toISOString();
+
+            let historyContent: SensorReadingResponse[] = [];
+            const pageSize = preset.hours >= 48 ? 2500 : 800;
+            const pageBySensor = await fetchReadingsHistory({
+              deviceId: devId,
+              sensorId: targetSid,
+              from,
+              to,
+              size: pageSize,
+              page: 0
+            });
+            historyContent = pageBySensor.content;
+            if (historyContent.length === 0) {
+              const pageDevice = await fetchReadingsHistory({
+                deviceId: devId,
+                from,
+                to,
+                size: pageSize,
+                page: 0
+              });
+              historyContent = pageDevice.content.filter((r) => r.sensorId === targetSid);
+            }
+            lastHistory = historyContent;
+
+            const built = buildSensorChartPoints(historyContent, rangeMs, preset.bucketMinutes, meta);
+            if (built.points.length >= MIN_IOT_CHART_POINTS) {
+              pts = built.points;
+              chartHours = preset.hours;
+              bucketMinutes = preset.bucketMinutes;
+              filledFromLatest = built.filledFromLatestAnchor;
+              break;
+            }
+          }
+
+          if (pts.length < MIN_IOT_CHART_POINTS && meta) {
+            const built = buildSensorChartPoints(
+              lastHistory,
+              DEFAULT_IOT_CHART_RANGE_MS,
+              chartBucketMinutesForRangeHours(DEFAULT_IOT_CHART_RANGE_HOURS),
+              meta
+            );
+            pts = built.points;
+            filledFromLatest = built.filledFromLatestAnchor;
+            chartHours = DEFAULT_IOT_CHART_RANGE_HOURS;
+            bucketMinutes = chartBucketMinutesForRangeHours(DEFAULT_IOT_CHART_RANGE_HOURS);
+          }
+
           setChartPoints(pts);
-          const meta = readings.find((r) => r.sensorId === targetSid) ?? page.content[0];
           const isSoil = meta && isSoilMoistureCandidate(meta.type, meta.sensorId);
           setChartTitle(
             isSoil
-              ? `Humedad / suelo · ${meta.sensorId} (24 h)`
-              : `Histórico · ${meta?.sensorId ?? targetSid} (24 h)`
+              ? `Humedad / suelo · ${meta.sensorId} (${chartHours} h)`
+              : `Histórico · ${meta?.sensorId ?? targetSid} (${chartHours} h)`
           );
-          setChartSubtitle("Datos desde el backend IoT (MongoDB)");
-          setChartValueLabel(meta?.type ?? "Valor");
+          setChartSubtitle(chartSubtitleWithBucket(bucketMinutes, filledFromLatest));
+          setChartValueLabel(formatChartTooltipMetricLabel(meta?.type ?? "Valor"));
           setChartUnit(meta?.unit?.trim() || "");
         } else {
           setChartPoints([]);
-          setChartTitle("Histórico IoT (24 h)");
+          setChartTitle(`Histórico IoT (${DEFAULT_IOT_CHART_RANGE_HOURS} h)`);
           setChartSubtitle("Sin sensores en la última lectura.");
           setChartValueLabel("Valor");
           setChartUnit("");

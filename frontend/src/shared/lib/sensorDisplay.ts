@@ -66,13 +66,37 @@ export function getSensorDisplayLabels(type: string, sensorId: string, timestamp
   return { title: formatSensorTypeTitle(type), subtitle: getSensorSubtitle(sensorId, timestampIso) };
 }
 
-/** Encabezado de gráfica histórica 24 h (p. ej. /sensores): reusa `formatSensorTypeTitle`. */
-export function formatSensorHistoryChartTitle(type: string): string {
+/** Encabezado de gráfica histórica (p. ej. /sensores): reusa `formatSensorTypeTitle`. */
+export function formatSensorHistoryChartTitle(type: string, rangeHours = 6): string {
   const t = `${type ?? ""}`.trim();
   const base = t ? formatSensorTypeTitle(t) : "Sensor";
-  return `${base} (24 h)`;
+  return `${base} (${rangeHours} h)`;
 }
 
-export function formatSensorHistoryChartSubtitle(sensorId: string): string {
-  return `${sensorId} · Backend IoT · últimas 24 h`;
+export function formatSensorHistoryChartSubtitle(sensorId: string, rangeHours = 6): string {
+  return `${sensorId} · Backend IoT · últimas ${rangeHours} h`;
+}
+
+/** Etiqueta de métrica en tooltips (p. ej. `soil_moisture` → Humedad de suelo). */
+export function formatChartTooltipMetricLabel(typeOrLabel: string | undefined | null): string {
+  const raw = `${typeOrLabel ?? ""}`.trim();
+  if (!raw) return "Medición";
+  if (raw === "Valor" || raw === "valor") return "Medición";
+  if (raw === "sensor") return "Sensor";
+  return formatSensorTypeTitle(raw);
+}
+
+/** Leyenda en gráficas comparativas: métrica en español + id del sensor. */
+export function formatComparisonSeriesLabel(sensorId: string, typeRaw?: string): string {
+  const metric = formatChartTooltipMetricLabel(typeRaw?.trim() || undefined);
+  const sid = sensorId.trim();
+  if (!sid) return metric;
+  if (metric === "Sensor" || metric === "Medición") return sid;
+  return `${metric} · ${sid}`;
+}
+
+/** Unidad mostrada en tooltip (% vacío si no hay unidad). */
+export function formatChartTooltipUnit(unit: string | undefined | null): string {
+  const u = `${unit ?? ""}`.trim();
+  return u;
 }

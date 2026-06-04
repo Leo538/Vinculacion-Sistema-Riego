@@ -47,7 +47,7 @@ function ComparisonTooltip({
       <div className="mt-1 space-y-0.5">
         {payload.map((p, idx) => (
           <p key={`${p.name ?? "line"}-${idx}`} className="text-[10px]" style={{ color: p.color ?? "#fff" }}>
-            {(p.name ?? "Serie") + ": "}
+            {(p.name ?? "Serie")}:{" "}
             <span className="font-semibold text-white">{p.value ?? "—"}</span>
             {typeof p.value === "number" ? ` ${unit}` : ""}
           </p>
