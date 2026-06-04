@@ -38,6 +38,7 @@ import type { SensorTechnicalStats } from "@/modules/sensores/types";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { IotDeviceSelector } from "@/shared/components/ui/IotDeviceSelector";
 import { Card } from "@/shared/components/ui/Card";
+import { mergeLatestReadings, useDeviceReadingsSocket } from "@/shared/hooks/useDeviceReadingsSocket";
 
 const CHART_COLORS = ["#38bdf8", "#22C55E", "#a78bfa", "#f472b6"];
 
@@ -141,6 +142,14 @@ export function SensoresPageView() {
     }
     void loadDeviceData(deviceId);
   }, [deviceId, loadDeviceData]);
+
+  const applyLiveReadings = useCallback((readings: SensorReadingResponse[]) => {
+    setLatest((prev) => mergeLatestReadings(prev, readings));
+    setHistoryRows((prev) => [...prev, ...readings].slice(-500));
+    setReadingsToday((prev) => (prev === null ? readings.length : prev + readings.length));
+  }, []);
+
+  const socket = useDeviceReadingsSocket({ deviceId, onReadings: applyLiveReadings });
 
   const groupedHistory = useMemo(() => {
     const m = new Map<string, SensorReadingResponse[]>();
@@ -276,7 +285,15 @@ export function SensoresPageView() {
     }));
   }, [latest]);
 
-  const deviceSelect = <IotDeviceSelector deviceIds={deviceIds} value={deviceId} onChange={setDeviceId} />;
+  const deviceSelect = (
+    <IotDeviceSelector
+      deviceIds={deviceIds}
+      value={deviceId}
+      onChange={setDeviceId}
+      connectionStatus={socket.status}
+      connectionError={socket.error}
+    />
+  );
 
   return (
     <AppShell mainClassName="min-h-screen overflow-y-auto overflow-x-hidden">

@@ -8,6 +8,7 @@ import type { SensorReadingResponse } from "@/lib/api/types";
 import { fetchDeviceIds, fetchLatestReadings } from "@/lib/api/sensors";
 import { TelemetryPageLayout } from "@/shared/components/layout/TelemetryPageLayout";
 import { IotDeviceSelector } from "@/shared/components/ui/IotDeviceSelector";
+import { mergeLatestReadings, useDeviceReadingsSocket } from "@/shared/hooks/useDeviceReadingsSocket";
 
 export function RiegoPageView({ climate }: { climate: OpenMeteoClimateBundle }) {
   const [deviceIds, setDeviceIds] = useState<string[]>([]);
@@ -55,6 +56,12 @@ export function RiegoPageView({ climate }: { climate: OpenMeteoClimateBundle }) 
     void loadLatest(deviceId);
   }, [deviceId, loadLatest]);
 
+  const applyLiveReadings = useCallback((readings: SensorReadingResponse[]) => {
+    setLatest((prev) => mergeLatestReadings(prev, readings));
+  }, []);
+
+  const socket = useDeviceReadingsSocket({ deviceId, onReadings: applyLiveReadings });
+
   const irrigation = useMemo(() => {
     const soil = pickLatestSoilReading(latest);
     return buildIrrigationRecommendation({
@@ -64,7 +71,15 @@ export function RiegoPageView({ climate }: { climate: OpenMeteoClimateBundle }) 
     });
   }, [latest, climate.rainProbabilityNow]);
 
-  const deviceSelect = <IotDeviceSelector deviceIds={deviceIds} value={deviceId} onChange={setDeviceId} />;
+  const deviceSelect = (
+    <IotDeviceSelector
+      deviceIds={deviceIds}
+      value={deviceId}
+      onChange={setDeviceId}
+      connectionStatus={socket.status}
+      connectionError={socket.error}
+    />
+  );
 
   return (
     <TelemetryPageLayout

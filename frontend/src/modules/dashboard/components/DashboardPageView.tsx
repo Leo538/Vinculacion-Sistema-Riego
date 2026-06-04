@@ -26,11 +26,13 @@ import { AppShell } from "@/shared/components/layout/AppShell";
 import { IotDeviceSelector } from "@/shared/components/ui/IotDeviceSelector";
 import { LivePageHeader } from "@/shared/components/ui/LivePageHeader";
 import { Card } from "@/shared/components/ui/Card";
+import { mergeLatestReadings, useDeviceReadingsSocket } from "@/shared/hooks/useDeviceReadingsSocket";
 
 export function DashboardPageView({ climate }: { climate: OpenMeteoClimateBundle }) {
   const [deviceIds, setDeviceIds] = useState<string[]>([]);
   const [deviceId, setDeviceId] = useState<string>("");
   const [latest, setLatest] = useState<SensorReadingResponse[]>([]);
+  const [chartSensorId, setChartSensorId] = useState<string | null>(null);
   const [chartPoints, setChartPoints] = useState<SoilHumidityPoint[]>([]);
   const [chartTitle, setChartTitle] = useState("Histórico IoT (24 h)");
   const [chartSubtitle, setChartSubtitle] = useState("Últimas 24 h · sensor prioritario");
@@ -63,6 +65,7 @@ export function DashboardPageView({ climate }: { climate: OpenMeteoClimateBundle
     async (devId: string) => {
       if (!devId) {
         setLatest([]);
+        setChartSensorId(null);
         setChartPoints([]);
         setChartTitle("Histórico IoT (24 h)");
         setChartSubtitle("Selecciona un dispositivo con datos.");
@@ -79,6 +82,7 @@ export function DashboardPageView({ climate }: { climate: OpenMeteoClimateBundle
         const to = new Date().toISOString();
 
         const targetSid = soilSid ?? readings[0]?.sensorId;
+        setChartSensorId(targetSid ?? null);
         if (targetSid) {
           const page = await fetchReadingsHistory({
             deviceId: devId,
@@ -101,6 +105,7 @@ export function DashboardPageView({ climate }: { climate: OpenMeteoClimateBundle
           setChartValueLabel(meta?.type ?? "Valor");
           setChartUnit(meta?.unit?.trim() || "");
         } else {
+          setChartSensorId(null);
           setChartPoints([]);
           setChartTitle("Histórico IoT (24 h)");
           setChartSubtitle("Sin sensores en la última lectura.");
@@ -117,6 +122,22 @@ export function DashboardPageView({ climate }: { climate: OpenMeteoClimateBundle
     },
     []
   );
+
+  const applyLiveReadings = useCallback(
+    (readings: SensorReadingResponse[]) => {
+      setLatest((prev) => mergeLatestReadings(prev, readings));
+      setChartPoints((prev) => {
+        if (!chartSensorId) return prev;
+        const reading = readings.find((row) => row.sensorId === chartSensorId);
+        if (!reading) return prev;
+        const point = historyToChartPoints([reading])[0];
+        return point ? [...prev, point].slice(-500) : prev;
+      });
+    },
+    [chartSensorId]
+  );
+
+  const socket = useDeviceReadingsSocket({ deviceId, onReadings: applyLiveReadings });
 
   useEffect(() => {
     void loadDevices();
@@ -149,7 +170,13 @@ export function DashboardPageView({ climate }: { climate: OpenMeteoClimateBundle
   const alerts = useMemo(() => buildAlertsFromReadingsAndClimate(latest, climate), [latest, climate]);
 
   const deviceSelect = (
-    <IotDeviceSelector deviceIds={deviceIds} value={deviceId} onChange={setDeviceId} />
+    <IotDeviceSelector
+      deviceIds={deviceIds}
+      value={deviceId}
+      onChange={setDeviceId}
+      connectionStatus={socket.status}
+      connectionError={socket.error}
+    />
   );
 
   return (

@@ -36,6 +36,7 @@ docker compose up --build
 
 | Servicio       | Puerto | Descripción                          |
 |----------------|--------|--------------------------------------|
+| Frontend       | 3000   | Dashboard Next.js                    |
 | Backend API    | 8080   | REST, Swagger, WebSocket (`/ws`)     |
 | Mosquitto      | 1883   | MQTT                                 |
 | Mosquitto WS   | 9001   | WebSocket MQTT (opcional)            |

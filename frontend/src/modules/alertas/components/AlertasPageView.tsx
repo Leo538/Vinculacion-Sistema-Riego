@@ -8,6 +8,7 @@ import type { SensorReadingResponse } from "@/lib/api/types";
 import { fetchDeviceIds, fetchLatestReadings } from "@/lib/api/sensors";
 import { TelemetryPageLayout } from "@/shared/components/layout/TelemetryPageLayout";
 import { IotDeviceSelector } from "@/shared/components/ui/IotDeviceSelector";
+import { mergeLatestReadings, useDeviceReadingsSocket } from "@/shared/hooks/useDeviceReadingsSocket";
 
 export function AlertasPageView({ climate }: { climate: OpenMeteoClimateBundle }) {
   const [deviceIds, setDeviceIds] = useState<string[]>([]);
@@ -55,9 +56,23 @@ export function AlertasPageView({ climate }: { climate: OpenMeteoClimateBundle }
     void loadLatest(deviceId);
   }, [deviceId, loadLatest]);
 
+  const applyLiveReadings = useCallback((readings: SensorReadingResponse[]) => {
+    setLatest((prev) => mergeLatestReadings(prev, readings));
+  }, []);
+
+  const socket = useDeviceReadingsSocket({ deviceId, onReadings: applyLiveReadings });
+
   const alerts = useMemo(() => buildAlertsFromReadingsAndClimate(latest, climate), [latest, climate]);
 
-  const headerTrailing = <IotDeviceSelector deviceIds={deviceIds} value={deviceId} onChange={setDeviceId} />;
+  const headerTrailing = (
+    <IotDeviceSelector
+      deviceIds={deviceIds}
+      value={deviceId}
+      onChange={setDeviceId}
+      connectionStatus={socket.status}
+      connectionError={socket.error}
+    />
+  );
 
   return (
     <TelemetryPageLayout

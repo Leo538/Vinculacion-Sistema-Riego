@@ -10,7 +10,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
  * Configuración de WebSocket con STOMP para streaming en tiempo real.
  *
  * <h3>Endpoint de conexión:</h3>
- * <pre>ws://localhost:8080/ws</pre>
+ * <pre>ws://   :8080/ws</pre>
  *
  * <h3>Topics disponibles para suscripción:</h3>
  * <ul>

@@ -66,7 +66,7 @@ void setup() {
   Serial.println("========================================\n");
 
   // Serial1 para comunicación con Arduino Mega
-  Serial1.begin(9600, SERIAL_8N1, SERIAL1_RX, SERIAL1_TX);
+  Serial1.begin(115200, SERIAL_8N1, SERIAL1_RX, SERIAL1_TX);
   Serial.println("[SERIAL] Serial1 iniciado (9600 baud, RX:" + String(SERIAL1_RX) + " TX:" + String(SERIAL1_TX) + ")");
 
   // Pines

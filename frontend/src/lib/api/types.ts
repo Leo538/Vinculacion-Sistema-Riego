@@ -16,6 +16,12 @@ export interface SensorReadingResponse {
   timestamp: string;
 }
 
+export interface SensorReadingEvent {
+  deviceId: string;
+  timestamp: string;
+  readings: SensorReadingResponse[];
+}
+
 export interface SensorInfoResponse {
   sensorId: string;
   type: string;
