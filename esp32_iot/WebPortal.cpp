@@ -3,11 +3,14 @@
 void WebPortal::begin(ConfigManager* cfg) {
   configMgr = cfg;
 
+  if (started) return;
+
   server.on("/", HTTP_GET, [this]() { handleRoot(); });
   server.on("/scan", HTTP_GET, [this]() { handleScan(); });
   server.on("/save", HTTP_POST, [this]() { handleSave(); });
 
   server.begin(80);
+  started = true;
   Serial.println("[PORTAL] Servidor web iniciado en puerto 80");
 }
 

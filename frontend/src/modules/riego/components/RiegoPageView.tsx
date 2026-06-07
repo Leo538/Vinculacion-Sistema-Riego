@@ -14,16 +14,19 @@ import type { SensorInfoResponse } from "@/lib/api/types";
 import { fetchDeviceIds, fetchLatestReadings, fetchReadingsHistory, fetchSensorsForDevice } from "@/lib/api/sensors";
 import { TelemetryPageLayout } from "@/shared/components/layout/TelemetryPageLayout";
 import { IotDeviceSelector } from "@/shared/components/ui/IotDeviceSelector";
+import { mergeLatestReadings, useDeviceReadingsSocket } from "@/shared/hooks/useDeviceReadingsSocket";
 import { Card } from "@/shared/components/ui/Card";
 import { RiegoChartsPanel } from "@/modules/riego/components/RiegoChartsPanel";
 import { formatSensorTypeTitle } from "@/shared/lib/sensorDisplay";
 import {
+  RIEGO_EVOLUTION_EMPTY_MESSAGE,
   RIEGO_SOIL_TREND_EMPTY_MESSAGE,
   RIEGO_SOIL_TREND_INSUFFICIENT_MESSAGE,
   buildDailyMeteoRecommendation,
-  buildRecommendationEvolution,
-  buildSoilMoistureTrend,
+  buildEvolutionChartData,
+  buildSoilMoistureTrendFilled,
   filterRiegoReadings,
+  MIN_RIEGO_CHART_POINTS,
   normalizeTypeKey,
   soilMoistureFromFiltered
 } from "@/modules/riego/lib/buildRiegoChartData";
@@ -132,6 +135,12 @@ export function RiegoPageView({ climate }: { climate: OpenMeteoClimateBundle }) 
     void loadLatest(deviceId);
   }, [deviceId, loadLatest]);
 
+  const applyLiveReadings = useCallback((readings: SensorReadingResponse[]) => {
+    setLatest((prev) => mergeLatestReadings(prev, readings));
+  }, []);
+
+  const socket = useDeviceReadingsSocket({ deviceId, onReadings: applyLiveReadings });
+
   useEffect(() => {
     void refreshClimate();
   }, [deviceId, refreshClimate]);
@@ -187,37 +196,66 @@ export function RiegoPageView({ climate }: { climate: OpenMeteoClimateBundle }) 
     [historyRows, typeFilter, statusFilter]
   );
 
+  /** Histórico de suelo para gráficas: tipo “Todos” para no ocultar humedad por filtro de tipo. */
+  const historyForSoilCharts = useMemo(
+    () => filterRiegoReadings(historyRows, "all", statusFilter, normalizeTypeKey),
+    [historyRows, statusFilter]
+  );
+
   const latestFiltered = useMemo(
     () => filterRiegoReadings(latest, typeFilter, statusFilter, normalizeTypeKey),
     [latest, typeFilter, statusFilter]
+  );
+
+  const latestSoilForCharts = useMemo(
+    () => pickLatestSoilReading(filterRiegoReadings(latest, "all", statusFilter, normalizeTypeKey)),
+    [latest, statusFilter]
   );
 
   const rangeMs = timeRange === "24h" ? MS_DAY : timeRange === "7d" ? 7 * MS_DAY : 30 * MS_DAY;
 
   const soilsInRange = useMemo(() => {
     const since = Date.now() - rangeMs;
-    return soilMoistureFromFiltered(filteredReadings).filter((r) => Date.parse(r.timestamp) >= since);
-  }, [filteredReadings, rangeMs]);
+    return soilMoistureFromFiltered(historyForSoilCharts).filter((r) => Date.parse(r.timestamp) >= since);
+  }, [historyForSoilCharts, rangeMs]);
 
   const hourly = climateLive.hourlyForecast ?? [];
 
-  /** Sin bloquear la evolución: si Open‑Meteo falla se usa probabilidad ~0 %. */
-  const evolution = useMemo(() => {
-    if (!soilsInRange.length) return [];
-    return buildRecommendationEvolution(soilsInRange, hourly, timeRange);
-  }, [soilsInRange, hourly, timeRange]);
+  const evolutionResult = useMemo(() => {
+    const rain = coerceSensorNumeric(climateLive.rainProbabilityNow) ?? 0;
+    return buildEvolutionChartData(soilsInRange, hourly, timeRange, latestSoilForCharts, rain);
+  }, [soilsInRange, hourly, timeRange, latestSoilForCharts, climateLive.rainProbabilityNow]);
+
+  const evolution = evolutionResult.rows;
+
+  const evolutionSubtitleNote = useMemo(() => {
+    const parts: string[] = [];
+    if (evolutionResult.usedSoilLatestFill) {
+      parts.push("tendencia de humedad estimada desde última lectura IoT");
+    }
+    if (evolutionResult.usedOpenMeteoHourlyFill) {
+      parts.push("prob. lluvia horaria extendida desde valor actual Open‑Meteo");
+    }
+    return parts.length ? ` · ${parts.join(" · ")}` : "";
+  }, [evolutionResult.usedSoilLatestFill, evolutionResult.usedOpenMeteoHourlyFill]);
 
   const weekly = useMemo(() => {
     if (!climateLive.forecast?.length) return [];
     return buildDailyMeteoRecommendation(climateLive.forecast, filteredReadings);
   }, [climateLive.forecast, filteredReadings]);
 
-  const soilTrend = useMemo(
-    () => buildSoilMoistureTrend(filteredReadings, timeRange, rangeMs),
-    [filteredReadings, timeRange, rangeMs]
+  const soilTrendResult = useMemo(
+    () => buildSoilMoistureTrendFilled(historyForSoilCharts, latest, timeRange, rangeMs),
+    [historyForSoilCharts, latest, timeRange, rangeMs]
   );
 
-  const soilTrendInsufficient = soilTrend.length === 1;
+  const soilTrend = soilTrendResult.rows;
+
+  const soilTrendSubtitleNote = soilTrendResult.filledFromLatestAnchor
+    ? " · serie completada desde última lectura IoT (backend)"
+    : "";
+
+  const soilTrendInsufficient = soilTrend.length > 0 && soilTrend.length < MIN_RIEGO_CHART_POINTS;
   const openMeteoOk = climateLive.weather.condition !== OPEN_METEO_UNAVAILABLE;
 
   const irrigation = useMemo(() => {
@@ -260,7 +298,15 @@ export function RiegoPageView({ climate }: { climate: OpenMeteoClimateBundle }) 
     return parts.length ? parts.join(" · ") : null;
   }, [climateLive.rainProbabilityNow, latest.length, latestFiltered, openMeteoOk]);
 
-  const deviceSelect = <IotDeviceSelector deviceIds={deviceIds} value={deviceId} onChange={setDeviceId} />;
+  const deviceSelect = (
+    <IotDeviceSelector
+      deviceIds={deviceIds}
+      value={deviceId}
+      onChange={setDeviceId}
+      connectionStatus={socket.status}
+      connectionError={socket.error}
+    />
+  );
 
   const controlClass =
     "rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-[10px] font-medium text-slate-900 outline-none transition hover:border-sky-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 dark:border-slate-600/80 dark:bg-[#0f1a2a] dark:text-slate-100 dark:hover:border-slate-500";
@@ -327,9 +373,12 @@ export function RiegoPageView({ climate }: { climate: OpenMeteoClimateBundle }) 
       <RiegoChartsPanel
         evolution={evolution}
         evolutionRangeKey={timeRange}
+        evolutionEmptyMessage={RIEGO_EVOLUTION_EMPTY_MESSAGE}
+        evolutionSubtitleNote={evolutionSubtitleNote}
         weekly={weekly}
         soilTrend={soilTrend}
         soilTrendEmptyMessage={RIEGO_SOIL_TREND_EMPTY_MESSAGE}
+        soilTrendSubtitleNote={soilTrendSubtitleNote}
         soilTrendInsufficient={soilTrendInsufficient}
         soilTrendInsufficientMessage={RIEGO_SOIL_TREND_INSUFFICIENT_MESSAGE}
       />

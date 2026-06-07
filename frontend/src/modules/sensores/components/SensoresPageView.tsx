@@ -11,7 +11,7 @@ import { SensorPlainReadingCard } from "@/modules/sensores/components/SensorPlai
 import { SensorStatusCompact } from "@/modules/sensores/components/SensorStatusCompact";
 import { SensoresEmptyState } from "@/modules/sensores/components/SensoresEmptyState";
 import { SensorTechnicalSummary } from "@/modules/sensores/components/SensorTechnicalSummary";
-import { isSoilMoistureForIrrigation } from "@/modules/dashboard/lib/irrigationRecommendation";
+import { coerceSensorNumeric, isSoilMoistureForIrrigation } from "@/modules/dashboard/lib/irrigationRecommendation";
 import {
   inferSensorIconForReading,
   readingToBarItemIfPercentLike,
@@ -25,10 +25,19 @@ import {
   fetchReadingsHistory,
   fetchSensorsForDevice
 } from "@/lib/api/sensors";
-import { historyToChartPoints, isReadingRecent } from "@/modules/dashboard/lib/iotPresentation";
+import {
+  buildSensorChartPoints,
+  chartBucketMinutesForRangeHours,
+  DEFAULT_IOT_CHART_RANGE_HOURS,
+  DEFAULT_IOT_CHART_RANGE_MS,
+  isReadingRecent,
+  MIN_IOT_CHART_POINTS
+} from "@/modules/dashboard/lib/iotPresentation";
 import { formatValueWithUnit } from "@/modules/dashboard/lib/iotPresentation";
 import {
   formatSensorHistoryChartSubtitle,
+  formatChartTooltipMetricLabel,
+  formatComparisonSeriesLabel,
   formatSensorHistoryChartTitle,
   formatSensorTypeTitle,
   getSensorSubtitle
@@ -43,10 +52,11 @@ import type { SensorTechnicalStats } from "@/modules/sensores/types";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { IotDeviceSelector } from "@/shared/components/ui/IotDeviceSelector";
 import { Card } from "@/shared/components/ui/Card";
+import { mergeLatestReadings, useDeviceReadingsSocket } from "@/shared/hooks/useDeviceReadingsSocket";
 
-const CHART_COLORS = ["#38bdf8", "#22C55E", "#a78bfa", "#f472b6"];
-const COMPARISON_COLORS = ["#0ea5e9", "#22c55e", "#a855f7", "#f97316", "#e11d48", "#14b8a6"];
-type TimeRangeKey = "24h" | "7d" | "30d" | "custom";
+const CHART_COLORS = ["#22d3ee", "#4ade80", "#c084fc", "#fb7185"];
+const COMPARISON_COLORS = ["#06b6d4", "#34d399", "#a78bfa", "#fb923c", "#f43f5e", "#2dd4bf"];
+type TimeRangeKey = "6h" | "24h" | "7d" | "30d" | "custom";
 type StatusFilter = "all" | "active" | "inactive";
 type CustomDateRange = { from: string; to: string };
 type ComparisonCardModel = {
@@ -123,7 +133,7 @@ function mergeSoilMoistureBySensor(byType: ComparisonPointsMap, soilTypeKeys: st
 function formatComparisonBucketLabel(bucketMs: number, timeRange: TimeRangeKey): string {
   const d = new Date(bucketMs);
   if (Number.isNaN(d.getTime())) return "—";
-  if (timeRange === "24h") {
+  if (timeRange === "6h" || timeRange === "24h") {
     return d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false });
   }
   const y = d.getFullYear();
@@ -186,7 +196,7 @@ export function SensoresPageView() {
   const [readingsToday, setReadingsToday] = useState<number | null>(null);
   const [sensorCatalog, setSensorCatalog] = useState<SensorInfoResponse[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [timeRange, setTimeRange] = useState<TimeRangeKey>("24h");
+  const [timeRange, setTimeRange] = useState<TimeRangeKey>("6h");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [customDateRange, setCustomDateRange] = useState<CustomDateRange>(() => {
     const to = new Date();
@@ -200,13 +210,20 @@ export function SensoresPageView() {
 
   const getRangeStartIso = useCallback((range: TimeRangeKey): string => {
     const now = Date.now();
-    const ms = range === "24h" ? 24 * 60 * 60 * 1000 : range === "7d" ? 7 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
+    const ms =
+      range === "6h"
+        ? DEFAULT_IOT_CHART_RANGE_MS
+        : range === "24h"
+          ? 24 * 60 * 60 * 1000
+          : range === "7d"
+            ? 7 * 24 * 60 * 60 * 1000
+            : 30 * 24 * 60 * 60 * 1000;
     return new Date(now - ms).toISOString();
   }, []);
 
   const resolveRangeIso = useCallback(
     (range: TimeRangeKey, custom: CustomDateRange): { from: string; to: string } => {
-      if (range === "24h" || range === "7d" || range === "30d") {
+      if (range === "6h" || range === "24h" || range === "7d" || range === "30d") {
         return { from: getRangeStartIso(range), to: new Date().toISOString() };
       }
       const fromMs = Date.parse(custom.from);
@@ -220,9 +237,15 @@ export function SensoresPageView() {
   );
 
   const bucketMinutesForRange = useCallback((range: TimeRangeKey): number => {
-    if (range === "24h") return 15;
-    if (range === "7d") return 60;
-    return 360;
+    const hours =
+      range === "6h"
+        ? DEFAULT_IOT_CHART_RANGE_HOURS
+        : range === "24h"
+          ? 24
+          : range === "7d"
+            ? 24 * 7
+            : 24 * 30;
+    return chartBucketMinutesForRangeHours(hours);
   }, []);
 
   const normalizeType = useCallback((raw: string): string => raw.trim().toLowerCase(), []);
@@ -267,7 +290,7 @@ export function SensoresPageView() {
 
       const { from, to } = resolveRangeIso(timeRange, customDateRange);
       const historySize =
-        timeRange === "24h" ? 2000 : timeRange === "7d" ? 3500 : timeRange === "30d" ? 5000 : 5000;
+        timeRange === "6h" ? 1200 : timeRange === "24h" ? 2000 : timeRange === "7d" ? 3500 : 5000;
       const page24 = await fetchReadingsHistory({
         deviceId: devId,
         from,
@@ -311,6 +334,14 @@ export function SensoresPageView() {
     void loadDeviceData(deviceId);
   }, [deviceId, loadDeviceData]);
 
+  const applyLiveReadings = useCallback((readings: SensorReadingResponse[]) => {
+    setLatest((prev) => mergeLatestReadings(prev, readings));
+    setHistoryRows((prev) => [...prev, ...readings].slice(-500));
+    setReadingsToday((prev) => (prev === null ? readings.length : prev + readings.length));
+  }, []);
+
+  const socket = useDeviceReadingsSocket({ deviceId, onReadings: applyLiveReadings });
+
   const deviceTypeOptions = useMemo(() => {
     const byNorm = new Map<string, string>();
     for (const s of sensorCatalog) {
@@ -341,37 +372,58 @@ export function SensoresPageView() {
     });
   }, [latest, typeFilter, statusFilter, normalizeType]);
 
-  const sensorIdsInScope = useMemo(() => new Set(filteredLatest.map((r) => r.sensorId)), [filteredLatest]);
+  /** Gráficas históricas: todos los sensores del dispositivo (no solo los que pasan filtros de tarjetas). */
+  const sensorIdsForCharts = useMemo(() => new Set(latest.map((r) => r.sensorId)), [latest]);
 
   const groupedHistory = useMemo(() => {
     const m = new Map<string, SensorReadingResponse[]>();
     for (const row of historyRows) {
-      if (!sensorIdsInScope.has(row.sensorId)) continue;
+      if (!sensorIdsForCharts.has(row.sensorId)) continue;
       const k = row.sensorId;
       if (!m.has(k)) m.set(k, []);
       m.get(k)!.push(row);
     }
+    for (const r of latest) {
+      if (!sensorIdsForCharts.has(r.sensorId)) continue;
+      if (!m.has(r.sensorId)) m.set(r.sensorId, []);
+    }
     return m;
-  }, [historyRows, sensorIdsInScope]);
+  }, [historyRows, latest, sensorIdsForCharts]);
+
+  const chartRangeHours = useMemo(() => {
+    if (timeRange === "6h") return DEFAULT_IOT_CHART_RANGE_HOURS;
+    if (timeRange === "24h") return 24;
+    if (timeRange === "7d") return 24 * 7;
+    if (timeRange === "30d") return 24 * 30;
+    return DEFAULT_IOT_CHART_RANGE_HOURS;
+  }, [timeRange]);
+
+  const chartRangeMs = useMemo(() => chartRangeHours * 60 * 60 * 1000, [chartRangeHours]);
+  const chartBucketMinutes = useMemo(() => chartBucketMinutesForRangeHours(chartRangeHours), [chartRangeHours]);
 
   const chartSeries = useMemo((): SensorHistorySeries[] => {
     const keys = Array.from(groupedHistory.keys()).slice(0, 6);
-    return keys.map((sensorId, idx) => {
-      const rows = groupedHistory.get(sensorId) ?? [];
-      const first = rows[0];
-      const pts = historyToChartPoints(rows).map((p) => ({ hour: p.hour, value: p.value }));
-      const metricType = first?.type ?? "sensor";
-      return {
-        id: sensorId,
-        title: formatSensorHistoryChartTitle(metricType),
-        subtitle: formatSensorHistoryChartSubtitle(sensorId),
-        valueLabel: first?.type ?? "Valor",
-        unit: first?.unit ?? "",
-        color: CHART_COLORS[idx % CHART_COLORS.length],
-        data: pts
-      };
-    });
-  }, [groupedHistory]);
+    return keys
+      .map((sensorId, idx) => {
+        const rows = groupedHistory.get(sensorId) ?? [];
+        const first = rows[0];
+        const latestRow = latest.find((r) => r.sensorId === sensorId);
+        const built = buildSensorChartPoints(rows, chartRangeMs, chartBucketMinutes, latestRow);
+        const pts = built.points.map((p) => ({ hour: p.hour, value: p.value }));
+        const metricType = first?.type ?? latestRow?.type ?? "sensor";
+        const fillNote = built.filledFromLatestAnchor ? " · desde última lectura" : "";
+        return {
+          id: sensorId,
+          title: formatSensorHistoryChartTitle(metricType, chartRangeHours),
+          subtitle: `${formatSensorHistoryChartSubtitle(sensorId, chartRangeHours)} · ~${chartBucketMinutes} min/punto${fillNote}`,
+          valueLabel: formatChartTooltipMetricLabel(first?.type ?? latestRow?.type ?? "Valor"),
+          unit: first?.unit ?? "",
+          color: CHART_COLORS[idx % CHART_COLORS.length],
+          data: pts
+        };
+      })
+      .filter((s) => s.data.length >= MIN_IOT_CHART_POINTS);
+  }, [groupedHistory, chartRangeHours, chartRangeMs, chartBucketMinutes, latest]);
 
   /** Puntos agrupados para comparativas (todos los tipos presentes en el histórico; sensores del dispositivo en `latest`). */
   const comparisonPointsByDevice = useMemo(() => {
@@ -380,14 +432,15 @@ export function SensoresPageView() {
     const deviceSensorIds = new Set(latest.map((r) => r.sensorId));
     for (const row of historyRows) {
       if (!deviceSensorIds.has(row.sensorId)) continue;
-      if (typeof row.value !== "number" || !Number.isFinite(row.value)) continue;
+      const num = coerceSensorNumeric(row.value);
+      if (num === null) continue;
       const rowType = normalizeType(row.type);
       const bySensor = byType.get(rowType) ?? new Map<string, Map<number, number>>();
       const sensorMap = bySensor.get(row.sensorId) ?? new Map<number, number>();
       const ts = Date.parse(row.timestamp);
       if (Number.isNaN(ts)) continue;
       const bucketMs = Math.floor(ts / (minutes * 60 * 1000)) * (minutes * 60 * 1000);
-      sensorMap.set(bucketMs, row.value);
+      sensorMap.set(bucketMs, num);
       bySensor.set(row.sensorId, sensorMap);
       byType.set(rowType, bySensor);
     }
@@ -407,12 +460,23 @@ export function SensoresPageView() {
     return m;
   }, [sensorCatalog, latest, normalizeType]);
 
+  const sensorTypeById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of historyRows) {
+      if (r.sensorId && r.type) m.set(r.sensorId, r.type);
+    }
+    for (const r of latest) {
+      if (r.sensorId && r.type) m.set(r.sensorId, r.type);
+    }
+    return m;
+  }, [historyRows, latest]);
+
   const buildComparisonSeriesFromBuckets = useCallback(
     (bySensor: Map<string, Map<number, number>>): { lines: ComparisonLineDef[]; data: ComparisonPoint[] } => {
       const entries = Array.from(bySensor.entries()).slice(0, 6);
       const lines = entries.map(([sensorId], idx) => ({
         key: `s${idx}`,
-        name: sensorId,
+        name: formatComparisonSeriesLabel(sensorId, sensorTypeById.get(sensorId)),
         color: COMPARISON_COLORS[idx % COMPARISON_COLORS.length]
       }));
       const allBuckets = new Set<number>();
@@ -490,7 +554,16 @@ export function SensoresPageView() {
   }, [buildComparisonModel, comparisonPointsByDevice, secondComparisonTypeKey]);
 
   const rangeLabel = useMemo(
-    () => (timeRange === "24h" ? "24h" : timeRange === "7d" ? "7d" : timeRange === "30d" ? "30d" : "personalizado"),
+    () =>
+      timeRange === "6h"
+        ? "6h"
+        : timeRange === "24h"
+          ? "24h"
+          : timeRange === "7d"
+            ? "7d"
+            : timeRange === "30d"
+              ? "30d"
+              : "personalizado",
     [timeRange]
   );
 
@@ -637,7 +710,15 @@ export function SensoresPageView() {
     }));
   }, [filteredLatest]);
 
-  const deviceSelect = <IotDeviceSelector deviceIds={deviceIds} value={deviceId} onChange={setDeviceId} />;
+  const deviceSelect = (
+    <IotDeviceSelector
+      deviceIds={deviceIds}
+      value={deviceId}
+      onChange={setDeviceId}
+      connectionStatus={socket.status}
+      connectionError={socket.error}
+    />
+  );
   const hasDeviceSelected = Boolean(deviceId);
   const showFilteredReadings = filteredLatest.length > 0;
   const reorganizeMainSection =
@@ -675,6 +756,7 @@ export function SensoresPageView() {
           <label className="flex flex-col gap-1 text-[10px] text-slate-500">
             Rango de tiempo
             <select className={controlClass} value={timeRange} onChange={(e) => setTimeRange(e.target.value as TimeRangeKey)}>
+              <option value="6h">Últimas 6 horas</option>
               <option value="24h">Últimas 24 horas</option>
               <option value="7d">Últimos 7 días</option>
               <option value="30d">Últimos 30 días</option>

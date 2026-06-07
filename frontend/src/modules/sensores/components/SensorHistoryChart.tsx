@@ -1,13 +1,19 @@
 "use client";
 
 import { Area, AreaChart, CartesianGrid, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { MIN_IOT_CHART_POINTS } from "@/modules/dashboard/lib/iotPresentation";
 import type { SensorHistorySeries } from "@/modules/sensores/types";
 import { sensorIconMap } from "@/modules/sensores/components/sensorIconMap";
 import { Card } from "@/shared/components/ui/Card";
 import { IconBox } from "@/shared/components/ui/IconBox";
+import { formatChartTooltipMetricLabel, formatChartTooltipUnit } from "@/shared/lib/sensorDisplay";
 
-const tickStyle = { fill: "#64748b", fontSize: 9 };
-const gridStyle = { stroke: "#334155", strokeOpacity: 0.2 };
+const tickStyle = { fill: "#94a3b8", fontSize: 9 };
+const gridStyle = { stroke: "#475569", strokeOpacity: 0.35 };
+
+function chartLineGlow(color: string): string {
+  return `drop-shadow(0 0 5px ${color}) drop-shadow(0 0 14px ${color}99)`;
+}
 
 function HistoryTooltip({
   active,
@@ -30,16 +36,23 @@ function HistoryTooltip({
 
   const first = payload.find((p) => typeof p.value === "number" || typeof p.value === "string");
   const raw = first?.value;
-  const valueText = raw !== undefined ? `${raw} ${unit}`.trim() : "—";
+  const unitText = formatChartTooltipUnit(unit);
+  const valueText =
+    raw !== undefined ?
+      typeof raw === "number" ?
+        unitText ? `${raw} ${unitText}` : `${raw}`
+      : `${raw}`
+    : "—";
+  const metricEs = formatChartTooltipMetricLabel(metricLabel);
 
   return (
     <div className="min-w-[120px] rounded-lg border border-slate-600/60 bg-[#0f1a2a] px-2.5 py-2 text-xs shadow-xl shadow-black/35">
-      <p className="text-[10px] text-slate-400">{label ?? "—"}</p>
+      <p className="text-[10px] text-slate-400">{label ? `Hora · ${label}` : "—"}</p>
       <p className="mt-1 font-semibold" style={{ color: "#ffffff" }}>
         {valueText}
       </p>
       <p className="text-[10px]" style={{ color }}>
-        {metricLabel}
+        {metricEs}
       </p>
     </div>
   );
@@ -58,7 +71,7 @@ export function SensorHistoryChart({
 }: SensorHistoryChartProps) {
   const HistIcon = sensorIconMap.activity;
 
-  if (!series.data.length) {
+  if (series.data.length < MIN_IOT_CHART_POINTS) {
     return (
       <Card padding="sm" className="flex items-start gap-3 border-dashed">
         <IconBox icon={HistIcon} className="mt-0.5 size-9 shrink-0" iconSizeClassName="size-3.5" rounded="full" aria-hidden />
@@ -72,11 +85,19 @@ export function SensorHistoryChart({
     );
   }
 
+  const glow = chartLineGlow(series.color);
+
   return (
-    <Card padding="sm" className="flex h-full min-h-[11rem] flex-col gap-1.5">
+    <Card
+      padding="sm"
+      className="flex h-full min-h-[11rem] flex-col gap-1.5 border-slate-200/80 dark:border-slate-700/50"
+      style={{
+        boxShadow: `inset 0 1px 0 0 ${series.color}22, 0 0 28px -6px ${series.color}44`
+      }}
+    >
       <div>
         <h2 className="text-xs font-semibold text-slate-900 dark:text-white">{series.title}</h2>
-        <p className="text-[10px] text-slate-500">{series.subtitle}</p>
+        <p className="text-[10px] text-slate-500 dark:text-slate-400">{series.subtitle}</p>
       </div>
 
       <div className="h-40 w-full min-h-0">
@@ -84,8 +105,9 @@ export function SensorHistoryChart({
           <AreaChart data={series.data} margin={{ top: 6, right: 4, left: -6, bottom: 10 }}>
             <defs>
               <linearGradient id={`fill-${series.id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={series.color} stopOpacity={0.26} />
-                <stop offset="100%" stopColor={series.color} stopOpacity={0.02} />
+                <stop offset="0%" stopColor={series.color} stopOpacity={0.55} />
+                <stop offset="45%" stopColor={series.color} stopOpacity={0.28} />
+                <stop offset="100%" stopColor={series.color} stopOpacity={0.06} />
               </linearGradient>
             </defs>
             <CartesianGrid {...gridStyle} vertical={false} />
@@ -93,47 +115,37 @@ export function SensorHistoryChart({
             <YAxis width={28} tick={tickStyle} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
             <Tooltip
               content={<HistoryTooltip unit={series.unit} metricLabel={series.valueLabel} color={series.color} />}
-              cursor={{ stroke: "#e2e8f0", strokeOpacity: 0.75, strokeWidth: 1.1 }}
+              cursor={{ stroke: series.color, strokeOpacity: 0.55, strokeWidth: 1.25 }}
             />
-            <Area type="monotone" dataKey="value" stroke="transparent" fill={`url(#fill-${series.id})`} fillOpacity={1} />
-            <Line
+            <Area
               type="monotone"
               dataKey="value"
-              stroke={series.color}
-              strokeWidth={2.2}
-              strokeOpacity={1}
-              fill="none"
-              dot={false}
+              stroke="transparent"
+              fill={`url(#fill-${series.id})`}
+              fillOpacity={1}
               activeDot={false}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{
-                filter: "drop-shadow(0px 0px 4px rgba(56,189,248,0.55)) drop-shadow(0px 0px 10px rgba(56,189,248,0.32))"
-              }}
             />
             <Line
               type="monotone"
               dataKey="value"
               stroke={series.color}
-              strokeWidth={3}
-              strokeOpacity={1}
+              strokeWidth={2.6}
+              fill="none"
               dot={{
-                r: 2.8,
-                fill: "#93c5fd",
-                stroke: "#3b82f6",
-                strokeWidth: 0.8
+                r: 3,
+                fill: "#f8fafc",
+                stroke: series.color,
+                strokeWidth: 1.2
               }}
               activeDot={{
-                r: 4,
-                strokeWidth: 0.9,
+                r: 5,
+                strokeWidth: 1.5,
                 stroke: "#ffffff",
                 fill: series.color
               }}
               strokeLinecap="round"
               strokeLinejoin="round"
-              style={{
-                filter: "drop-shadow(0px 0px 2px rgba(255,255,255,0.4)) drop-shadow(0px 0px 8px rgba(56,189,248,0.45))"
-              }}
+              style={{ filter: glow }}
             />
           </AreaChart>
         </ResponsiveContainer>

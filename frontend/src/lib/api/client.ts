@@ -10,14 +10,7 @@ export function buildApiUrl(path: string): string {
   return `${baseUrl()}${p}`;
 }
 
-export async function apiGet<T>(path: string): Promise<ApiResponse<T>> {
-  const url = buildApiUrl(path);
-  const res = await fetch(url, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    cache: "no-store"
-  });
-
+async function parseApiResponse<T>(res: Response): Promise<ApiResponse<T>> {
   const text = await res.text();
   let body: ApiResponse<T>;
   try {
@@ -31,6 +24,25 @@ export async function apiGet<T>(path: string): Promise<ApiResponse<T>> {
   }
 
   return body;
+}
+
+export async function apiGet<T>(path: string): Promise<ApiResponse<T>> {
+  const res = await fetch(buildApiUrl(path), {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    cache: "no-store"
+  });
+  return parseApiResponse<T>(res);
+}
+
+export async function apiPost<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
+  const res = await fetch(buildApiUrl(path), {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    cache: "no-store"
+  });
+  return parseApiResponse<T>(res);
 }
 
 export function unwrapData<T>(response: ApiResponse<T>): T {

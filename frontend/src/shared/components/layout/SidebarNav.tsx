@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Bell, LayoutDashboard, Sprout } from "lucide-react";
+import { Activity, Bell, Cpu, LayoutDashboard, Sprout } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { DashboardScrollArea } from "@/shared/components/ui/DashboardScrollArea";
@@ -30,6 +30,12 @@ const sidebarItems = [
     icon: Bell,
     href: "/alertas",
     isActive: (p: string) => p === "/alertas"
+  },
+  {
+    label: "Dispositivos",
+    icon: Cpu,
+    href: "/dispositivos",
+    isActive: (p: string) => p === "/dispositivos"
   }
 ] as const;
 

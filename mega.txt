@@ -1,0 +1,209 @@
+// ==========================================
+// ESP32 + 2 RELÉS TIPO SWITCH + SENSOR HUMEDAD + TERMOCUPLA
+// ==========================================
+
+#include "max6675.h"
+
+const int releON  = 15;
+const int releOFF = 2;
+const int sensorHumedad = 4;
+
+// Pines para termocupla MAX6675
+int thermoDO = 19;
+int thermoCS = 5;
+int thermoCLK = 18;
+
+MAX6675 termocupla(thermoCLK, thermoCS, thermoDO);
+
+char letra;
+int humedadSuelo;
+int humedadSueloEscalada;
+float temperaturaTC = 0;
+bool modoAutomatico = false;
+String estadoSistema = "0";
+String ultimoComando = "0";
+
+void setup() {
+  // Serial para la PC (Monitor Serial)
+  Serial.begin(115200);
+
+  // Serial2 para comunicarse con el otro ESP32 (RX2=16, TX2=17)
+  Serial2.begin(115200);
+
+  pinMode(releON, OUTPUT);
+  pinMode(releOFF, OUTPUT);
+
+  // Asegurar que arranquen apagados
+  digitalWrite(releON, HIGH);
+  digitalWrite(releOFF, HIGH);
+
+  delay(1000);
+}
+
+void loop() {
+  // ==============================
+  // LECTURA DE HUMEDAD DE SUELO
+  // ==============================
+  humedadSuelo = analogRead(sensorHumedad);
+
+  // Mapeo estándar para el sensor (4095 seco, 0 mojado)
+  humedadSueloEscalada = map(humedadSuelo, 4095, 0, 0, 100);
+  humedadSueloEscalada = constrain(humedadSueloEscalada, 0, 100);
+
+  // ==============================
+  // LECTURA DE TERMOCUPLA
+  // ==============================
+  temperaturaTC = termocupla.readCelsius();
+
+  // ==============================
+  // CONTROL AUTOMÁTICO (EVITANDO PULSOS REPETIDOS)
+  // ==============================
+  if (modoAutomatico) {
+    ultimoComando = "U";
+    if (!isnan(temperaturaTC)) {
+
+      // Si el suelo está muy seco O la temperatura es alta -> PRENDE (Solo si estaba apagado)
+      if ((humedadSueloEscalada < 15 || temperaturaTC >= 40.0) && estadoSistema == "0") {
+        encenderSistema();
+      }
+      // Si detecta algo de humedad -> SE APAGA (Solo si estaba encendido)
+      else if (humedadSueloEscalada >= 40 && estadoSistema == "1") {
+        apagarSistema();
+      }
+    }
+  }
+
+  // ==============================
+  // CONTROL MANUAL POR SERIAL (PC)
+  // ==============================
+  if (Serial.available() > 0) {
+    letra = Serial.read();
+
+    if (letra != '\n' && letra != '\r') {
+      if (letra == 'E' && !modoAutomatico) {
+        encenderSistema();
+        ultimoComando = "E";
+      }
+      else if (letra == 'A' && !modoAutomatico) {
+        apagarSistema();
+        ultimoComando = "A";
+      }
+      else if (letra == 'M') {
+        modoAutomatico = false;
+        ultimoComando = "M";
+      }
+      else if (letra == 'U') {
+        modoAutomatico = true;
+        ultimoComando = "U";
+      }
+    }
+  }
+
+  // ==============================
+  // CONTROL MANUAL POR SERIAL2 (ESP32 via MQTT)
+  // ==============================
+  if (Serial2.available() > 0) {
+    letra = Serial2.read();
+
+    if (letra != '\n' && letra != '\r') {
+      if (letra == 'E' && !modoAutomatico) {
+        encenderSistema();
+        ultimoComando = "E";
+      }
+      else if (letra == 'A' && !modoAutomatico) {
+        apagarSistema();
+        ultimoComando = "A";
+      }
+      else if (letra == 'M') {
+        modoAutomatico = false;
+        ultimoComando = "M";
+      }
+      else if (letra == 'U') {
+        modoAutomatico = true;
+        ultimoComando = "U";
+      }
+    }
+  }
+
+  // ==========================================
+  // NUEVO FORMATO DE SALIDA (Para PC y para el otro ESP32)
+  // ==========================================
+
+  // 1. Enviar Humedad
+  Serial.print("01:humedad:");
+  Serial.print(humedadSueloEscalada);
+  Serial.println(":%");
+
+  Serial2.print("01:humedad:");
+  Serial2.print(humedadSueloEscalada);
+  Serial2.println(":%");
+
+  // 2. Enviar Temperatura
+  Serial.print("02:temperatura:");
+  if(isnan(temperaturaTC)) {
+    Serial.print("0.0");
+  } else {
+    Serial.print(temperaturaTC, 1);
+  }
+  Serial.println(":C");
+
+  Serial2.print("02:temperatura:");
+  if(isnan(temperaturaTC)) {
+    Serial2.print("0.0");
+  } else {
+    Serial2.print(temperaturaTC, 1);
+  }
+  Serial2.println(":C");
+
+  // 3. Enviar Estado del Sistema de Riego (encendido/apagado)
+  Serial.print("03:estado_sistema:");
+  Serial.print(estadoSistema == "1" ? 1 : 0);
+  Serial.println(":bool");
+
+  Serial2.print("03:estado_sistema:");
+  Serial2.print(estadoSistema == "1" ? 1 : 0);
+  Serial2.println(":bool");
+
+  // 4. Enviar Modo de Riego (automático/manual)
+  Serial.print("04:modo_riego:");
+  Serial.print(modoAutomatico ? 1 : 0);
+  Serial.println(":bool");
+
+  Serial2.print("04:modo_riego:");
+  Serial2.print(modoAutomatico ? 1 : 0);
+  Serial2.println(":bool");
+
+  // 5. Enviar Último Comando recibido (código ASCII del carácter: 'E'/'A'/'M'/'U'/'0')
+  Serial.print("05:ultimo_comando:");
+  Serial.print((int)ultimoComando.charAt(0));
+  Serial.println(":char");
+
+  Serial2.print("05:ultimo_comando:");
+  Serial2.print((int)ultimoComando.charAt(0));
+  Serial2.println(":char");
+
+  // 6. Enviar Fin de Paquete (debe ir siempre al final, después de reportar el estado)
+  Serial.println("END");
+  Serial2.println("END");
+
+  delay(1000);
+}
+
+// ==========================================
+// ACCIONES DE LOS RELÉS (PROTEGIDOS DE REPETICIÓN)
+// ==========================================
+void encenderSistema() {
+  digitalWrite(releON, LOW);
+  digitalWrite(releOFF, HIGH);
+  delay(200);
+  digitalWrite(releON, HIGH);
+  estadoSistema = "1";
+}
+
+void apagarSistema() {
+  digitalWrite(releOFF, LOW);
+  digitalWrite(releON, HIGH);
+  delay(200);
+  digitalWrite(releOFF, HIGH);
+  estadoSistema = "0";
+}

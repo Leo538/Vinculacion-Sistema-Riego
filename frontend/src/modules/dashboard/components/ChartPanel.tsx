@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import type { SoilHumidityPoint } from "@/modules/dashboard/types";
+import { MIN_IOT_CHART_POINTS } from "@/modules/dashboard/lib/iotPresentation";
 import { Card } from "@/shared/components/ui/Card";
+import { formatChartTooltipMetricLabel, formatChartTooltipUnit } from "@/shared/lib/sensorDisplay";
 
 interface ChartPanelProps {
   title: string;
@@ -14,8 +16,74 @@ interface ChartPanelProps {
   valueUnit?: string;
 }
 
+const CHART_W = 100;
+const CHART_H = 44;
+const CHART_PAD_X = 3;
+const CHART_PAD_Y = 5;
+
 export function ChartPanel({ title, subtitle, data, valueLabel = "Valor", valueUnit = "%" }: ChartPanelProps) {
-  if (data.length === 0) {
+  const metricLabelEs = formatChartTooltipMetricLabel(valueLabel);
+  const unitEs = formatChartTooltipUnit(valueUnit);
+  const [hoverIndex, setHoverIndex] = useState(0);
+  const [isHovering, setIsHovering] = useState(false);
+
+  const hasChart = data.length >= MIN_IOT_CHART_POINTS;
+
+  const chartModel = useMemo(() => {
+    if (!hasChart) return null;
+
+    const values = data.map((d) => d.value);
+    const minV = Math.min(...values);
+    const maxV = Math.max(...values);
+    const range = maxV - minV || 1;
+    const innerW = CHART_W - 2 * CHART_PAD_X;
+    const innerH = CHART_H - 2 * CHART_PAD_Y;
+
+    const linePoints = data.map((point, i) => {
+      const n = data.length;
+      const x = CHART_PAD_X + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+      const y = CHART_PAD_Y + innerH - ((point.value - minV) / range) * innerH;
+      return { x, y, label: point.hour, value: point.value, i };
+    });
+
+    const pathD = linePoints
+      .map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`))
+      .join(" ");
+
+    const yTicks = [0, 0.5, 1].map((t) => Math.round(minV + t * range));
+    const labelStep = data.length <= 8 ? 1 : Math.max(1, Math.round(data.length / 5));
+    const gridLines = [0, 0.25, 0.5, 0.75, 1].map((t) => {
+      const gy = CHART_PAD_Y + t * innerH;
+      return (
+        <line
+          key={t}
+          x1={CHART_PAD_X}
+          y1={gy}
+          x2={CHART_W - CHART_PAD_X}
+          y2={gy}
+          stroke="rgba(148,163,184,0.08)"
+          strokeWidth={0.35}
+        />
+      );
+    });
+
+    return { linePoints, pathD, yTicks, labelStep, gridLines, innerW, innerH };
+  }, [data, hasChart]);
+
+  const safeHoverIndex = chartModel
+    ? Math.min(Math.max(hoverIndex, 0), chartModel.linePoints.length - 1)
+    : 0;
+  const hoveredPoint =
+    chartModel && isHovering ? chartModel.linePoints[safeHoverIndex] : null;
+
+  const tooltipXPercent = ((hoveredPoint?.x ?? CHART_PAD_X) / CHART_W) * 100;
+  const tooltipAlignClass = tooltipXPercent > 66 ? "-translate-x-full" : "";
+  const tooltipStyle = useMemo(
+    () => ({ left: `clamp(0%, ${tooltipXPercent}%, 100%)` }),
+    [tooltipXPercent]
+  );
+
+  if (!chartModel) {
     return (
       <Card className="flex h-full min-h-[8rem] flex-col justify-center overflow-hidden" padding="sm">
         <div className="mb-1 shrink-0">
@@ -27,46 +95,7 @@ export function ChartPanel({ title, subtitle, data, valueLabel = "Valor", valueU
     );
   }
 
-  const values = data.map((d) => d.value);
-  const minV = Math.min(...values);
-  const maxV = Math.max(...values);
-  const range = maxV - minV || 1;
-
-  const w = 100;
-  const h = 44;
-  const padX = 3;
-  const padY = 5;
-  const innerW = w - 2 * padX;
-  const innerH = h - 2 * padY;
-
-  const linePoints = data.map((point, i) => {
-    const n = data.length;
-    const x = padX + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
-    const y = padY + innerH - ((point.value - minV) / range) * innerH;
-    return { x, y, label: point.hour, value: point.value, i };
-  });
-  const [hoverIndex, setHoverIndex] = useState<number>(0);
-  const [isHovering, setIsHovering] = useState(false);
-  const safeHoverIndex = Math.min(Math.max(hoverIndex, 0), linePoints.length - 1);
-  const hoveredPoint = isHovering ? linePoints[safeHoverIndex] : null;
-
-  const pathD = linePoints
-    .map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`))
-    .join(" ");
-
-  const yTicks = [0, 0.5, 1].map((t) => Math.round(minV + t * range));
-  const labelStep = data.length <= 8 ? 1 : Math.max(1, Math.round(data.length / 5));
-
-  const gridLines = [0, 0.25, 0.5, 0.75, 1].map((t) => {
-    const gy = padY + t * innerH;
-    return <line key={t} x1={padX} y1={gy} x2={w - padX} y2={gy} stroke="rgba(148,163,184,0.08)" strokeWidth={0.35} />;
-  });
-  const tooltipXPercent = ((hoveredPoint?.x ?? padX) / w) * 100;
-  const tooltipAlignClass = tooltipXPercent > 66 ? "-translate-x-full" : "";
-  const tooltipStyle = useMemo(
-    () => ({ left: `clamp(0%, ${tooltipXPercent}%, 100%)` }),
-    [tooltipXPercent]
-  );
+  const { linePoints, pathD, yTicks, labelStep, gridLines, innerW, innerH } = chartModel;
 
   return (
     <Card className="flex h-full min-h-0 flex-col overflow-hidden" padding="sm">
@@ -84,7 +113,7 @@ export function ChartPanel({ title, subtitle, data, valueLabel = "Valor", valueU
         <div className="relative flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1">
             <svg
-              viewBox={`0 0 ${w} ${h}`}
+              viewBox={`0 0 ${CHART_W} ${CHART_H}`}
               className="h-full min-h-[100px] w-full"
               preserveAspectRatio="none"
             >
@@ -96,7 +125,7 @@ export function ChartPanel({ title, subtitle, data, valueLabel = "Valor", valueU
                 </linearGradient>
               </defs>
               <path
-                d={`${pathD} L ${linePoints[linePoints.length - 1]?.x ?? padX} ${h - padY} L ${linePoints[0]?.x ?? padX} ${h - padY} Z`}
+                d={`${pathD} L ${linePoints[linePoints.length - 1]?.x ?? CHART_PAD_X} ${CHART_H - CHART_PAD_Y} L ${linePoints[0]?.x ?? CHART_PAD_X} ${CHART_H - CHART_PAD_Y} Z`}
                 fill="url(#soilLineGradient)"
               />
               <path
@@ -123,9 +152,9 @@ export function ChartPanel({ title, subtitle, data, valueLabel = "Valor", valueU
                 <>
                   <line
                     x1={hoveredPoint.x}
-                    y1={padY}
+                    y1={CHART_PAD_Y}
                     x2={hoveredPoint.x}
-                    y2={h - padY}
+                    y2={CHART_H - CHART_PAD_Y}
                     stroke="rgba(226,232,240,0.9)"
                     strokeWidth={0.35}
                   />
@@ -140,8 +169,8 @@ export function ChartPanel({ title, subtitle, data, valueLabel = "Valor", valueU
                 </>
               ) : null}
               <rect
-                x={padX}
-                y={padY}
+                x={CHART_PAD_X}
+                y={CHART_PAD_Y}
                 width={innerW}
                 height={innerH}
                 fill="transparent"
@@ -161,11 +190,12 @@ export function ChartPanel({ title, subtitle, data, valueLabel = "Valor", valueU
               className={`pointer-events-none absolute top-2 z-10 min-w-[115px] rounded-xl border border-slate-600/70 bg-[#0f1a2a]/95 px-2 py-1.5 shadow-lg shadow-black/35 ${tooltipAlignClass}`}
               style={tooltipStyle}
             >
-              <p className="text-[11px] font-medium text-slate-300">{hoveredPoint.label}</p>
+              <p className="text-[11px] font-medium text-slate-300">Hora · {hoveredPoint.label}</p>
               <p className="text-lg font-semibold leading-tight" style={{ color: "#ffffff" }}>
-                {hoveredPoint.value} {valueUnit}
+                {hoveredPoint.value}
+                {unitEs ? ` ${unitEs}` : ""}
               </p>
-              <p className="text-xs font-semibold text-sky-400">{valueLabel}</p>
+              <p className="text-xs font-semibold text-sky-400">{metricLabelEs}</p>
             </div>
           ) : null}
           <div className="mt-1 grid shrink-0" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}>
