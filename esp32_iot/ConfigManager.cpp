@@ -40,3 +40,10 @@ void ConfigManager::resetConfig() {
   loadConfig();  // Recarga defaults
   Serial.println("[CONFIG] Configuración reseteada a valores por defecto");
 }
+
+void ConfigManager::clearConfig() {
+  prefs.begin(NVS_NAMESPACE, false);
+  prefs.clear();
+  prefs.end();
+  Serial.println("[CONFIG] NVS borrado.");
+}

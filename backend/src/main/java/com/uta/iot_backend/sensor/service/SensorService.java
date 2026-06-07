@@ -41,6 +41,8 @@ public class SensorService {
 
     private final SensorEventPublisher sensorEventPublisher;
 
+    private final IrrigationStateService irrigationStateService;
+
     // ========================
     // MQTT — Procesamiento
     // ========================
@@ -65,6 +67,9 @@ public class SensorService {
 
             // Publicar a clientes WebSocket para actualización en tiempo real
             sensorEventPublisher.publishReadings(savedReadings);
+
+            // Detectar y republicar el estado del sistema de riego (Mega), si vino en este paquete
+            irrigationStateService.onReadingsSaved(savedReadings);
 
         } catch (JsonProcessingException e) {
             log.error("Error parseando JSON: {}", e.getMessage());

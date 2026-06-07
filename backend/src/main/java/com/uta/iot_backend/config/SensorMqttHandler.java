@@ -1,5 +1,6 @@
 package com.uta.iot_backend.config;
 
+import com.uta.iot_backend.sensor.service.MqttResponseListener;
 import org.eclipse.paho.mqttv5.client.IMqttToken;
 import org.eclipse.paho.mqttv5.client.MqttCallback;
 import org.eclipse.paho.mqttv5.client.MqttClient;
@@ -23,6 +24,7 @@ public class SensorMqttHandler implements MqttCallback {
 
     private final MqttClient mqttClient;
     private final SensorService sensorService;
+    private final MqttResponseListener responseListener;
 
     @Value("${mqtt.topic.prefix}")
     private String topic;
@@ -30,23 +32,34 @@ public class SensorMqttHandler implements MqttCallback {
     @Value("${mqtt.qos}")
     private int qos;
 
-    public SensorMqttHandler(MqttClient mqttClient, SensorService sensorService) {
+    public SensorMqttHandler(MqttClient mqttClient, SensorService sensorService, MqttResponseListener responseListener) {
         this.mqttClient = mqttClient;
         this.sensorService = sensorService;
+        this.responseListener = responseListener;
     }
 
     @EventListener(ApplicationReadyEvent.class)
     public void subscribe() throws MqttException {
         mqttClient.setCallback(this);
         mqttClient.subscribe(topic, qos);
-        log.info("Suscrito a topic: {} con QoS: {}", topic, qos);
+        mqttClient.subscribe("esp/respuesta/#", qos);  // También suscribirse a las respuestas
+        log.info("Suscrito a topics: {} y esp/respuesta/# con QoS: {}", topic, qos);
     }
 
     @Override
     public void messageArrived(String topic, MqttMessage message) {
         String payload = new String(message.getPayload());
-        log.info("Mensaje recibido en topic: {}", topic);
-        sensorService.processMessage(payload);
+        
+        if (topic.startsWith("esp/respuesta/")) {
+            // Delegar mensajes de respuesta al listener
+            String deviceId = extractDeviceId(topic);
+            responseListener.storeResponse(deviceId, payload);
+            log.debug("Respuesta de dispositivo procesada: {} -> {}", deviceId, payload);
+        } else {
+            // Procesar mensajes de sensores normalmente
+            log.info("Mensaje recibido en topic: {}", topic);
+            sensorService.processMessage(payload);
+        }
     }
 
     @Override
@@ -59,6 +72,7 @@ public class SensorMqttHandler implements MqttCallback {
         log.info("{} al broker: {}", reconnect ? "Reconectado" : "Conectado", serverURI);
         try {
             mqttClient.subscribe(topic, qos);
+            mqttClient.subscribe("esp/respuesta/#", qos);
         } catch (MqttException e) {
             log.error("Error al resuscribirse: {}", e.getMessage());
         }
@@ -74,4 +88,13 @@ public class SensorMqttHandler implements MqttCallback {
 
     @Override
     public void authPacketArrived(int reasonCode, MqttProperties properties) {}
+
+    private String extractDeviceId(String topic) {
+        // Topic: esp/respuesta/{deviceId}
+        String[] parts = topic.split("/");
+        if (parts.length >= 3) {
+            return parts[2];
+        }
+        return "";
+    }
 }

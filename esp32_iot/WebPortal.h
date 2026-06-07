@@ -15,6 +15,7 @@ private:
   WebServer server;
   ConfigManager* configMgr;
   NetManager scanner;
+  bool started = false;
 
   void handleRoot();
   void handleScan();

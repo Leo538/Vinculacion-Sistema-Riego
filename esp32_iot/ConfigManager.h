@@ -27,6 +27,7 @@ public:
   void saveConfig();
   void printConfig();
   void resetConfig();
+  void clearConfig();
 
 private:
   Preferences prefs;
