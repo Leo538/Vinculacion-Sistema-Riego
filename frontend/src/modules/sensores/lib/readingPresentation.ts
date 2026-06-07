@@ -23,11 +23,19 @@ function levelFromPct(pct: number): SensorLevel {
 /**
  * Devuelve un gauge solo si el tipo/unidad permiten un rango razonable.
  */
+/** Nivel de tanque/cisterna (valor absoluto típico, no %) para mostrarlo como gauge 0‑máx. */
+export function isTankWaterLevelGaugeCandidate(type: string, sensorId: string): boolean {
+  const hay = `${type} ${sensorId}`.toLowerCase();
+  if (/\b(flow|caudal|bomba)\b/i.test(hay)) return false;
+  return /\bwater_level\b|waterlevel|\btank_level\b|tanque|\btank\b|nivel.*(tanque|tank|cisterna|cistern)|cisterna/.test(hay);
+}
+
 export function readingToGaugeItem(r: SensorReadingResponse): SensorGaugeItem | null {
   const t = r.type.toLowerCase();
   const u = r.unit.trim().toLowerCase();
   const v = r.value;
   const iconKey = inferSensorIconForReading(r.type, r.sensorId);
+  const tankLike = isTankWaterLevelGaugeCandidate(r.type, r.sensorId);
 
   if (u === "%" || u === "percent") {
     return {
@@ -83,7 +91,7 @@ export function readingToGaugeItem(r: SensorReadingResponse): SensorGaugeItem | 
     };
   }
 
-  if (/l\/min|lpm|litro/.test(u) || t.includes("flow") || t.includes("caudal")) {
+  if (/l\s*\/\s*min|lpm/i.test(u) || ((t.includes("flow") || t.includes("caudal")) && !tankLike)) {
     return {
       id: r.sensorId,
       label: formatSensorTypeTitle(r.type),
@@ -98,6 +106,55 @@ export function readingToGaugeItem(r: SensorReadingResponse): SensorGaugeItem | 
       warningMax: 20,
       criticalMin: 0,
       criticalMax: 25
+    };
+  }
+
+  /** Nivel de tanque como “llenado”: escala proporcional hasta un techo cómodo según valor actual. */
+  if (tankLike && (["cm", "mm", "m"].includes(u) || u.includes("altura") || u.includes("profund"))) {
+    const maxCap = Math.max(100, Math.round(Math.abs(v) * 1.25));
+    const display = `${Math.round(v * 100) / 100} ${r.unit.trim()}`;
+    return {
+      id: r.sensorId,
+      label: formatSensorTypeTitle(r.type),
+      subtitle: getSensorSubtitle(r.sensorId, r.timestamp),
+      iconKey: "waves",
+      value: Math.min(maxCap, Math.max(0, v)),
+      displayValue: display,
+      unit: r.unit.trim(),
+      min: 0,
+      max: maxCap,
+      warningMin: maxCap * 0.25,
+      warningMax: maxCap * 0.85,
+      criticalMin: maxCap * 0.08,
+      criticalMax: maxCap * 0.95
+    };
+  }
+
+  if (
+    tankLike &&
+    (u === "l" ||
+      u.includes("litro") ||
+      u.includes("litros") ||
+      u.includes("m³") ||
+      u.includes("m3") ||
+      u.includes("gal"))
+  ) {
+    const maxCap = Math.max(5000, Math.round(Math.abs(v) * 1.35));
+    return {
+      id: r.sensorId,
+      label: formatSensorTypeTitle(r.type),
+      subtitle: getSensorSubtitle(r.sensorId, r.timestamp),
+      iconKey: "waves",
+      value: Math.min(maxCap, Math.max(0, v)),
+      displayValue:
+        /\b(m³|m3)\b/i.test(u) ? `${v.toFixed(2)} ${r.unit.trim()}` : `${Math.round(v * 100) / 100} ${r.unit.trim()}`,
+      unit: r.unit.trim(),
+      min: 0,
+      max: maxCap,
+      warningMin: maxCap * 0.22,
+      warningMax: maxCap * 0.88,
+      criticalMin: maxCap * 0.06,
+      criticalMax: maxCap * 0.97
     };
   }
 

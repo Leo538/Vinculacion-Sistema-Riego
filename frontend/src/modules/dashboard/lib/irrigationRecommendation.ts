@@ -6,6 +6,19 @@ function parseReadingInstantMs(iso: string): number {
   return Number.isNaN(t) ? 0 : t;
 }
 
+/** Backend JSON a veces envía números como string; rechaza NaN / infinito. */
+export function coerceSensorNumeric(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim().replace(",", ".");
+    if (trimmed === "") return null;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 /** type o sensorId contienen estos indicios de humedad de suelo (backend IoT). */
 export function isSoilMoistureForIrrigation(type: string, sensorId: string): boolean {
   const hay = `${type} ${sensorId}`.toLowerCase();
@@ -21,7 +34,10 @@ export function isSoilMoistureForIrrigation(type: string, sensorId: string): boo
 
 /** Entre lecturas candidatas, la más reciente por timestamp (empate: primera estable). */
 export function pickLatestSoilReading(readings: SensorReadingResponse[]): SensorReadingResponse | null {
-  const soil = readings.filter((r) => isSoilMoistureForIrrigation(r.type, r.sensorId));
+  const soil = readings.filter((r) => {
+    if (!isSoilMoistureForIrrigation(r.type, r.sensorId)) return false;
+    return coerceSensorNumeric(r.value) !== null;
+  });
   if (soil.length === 0) return null;
   return soil.reduce((best, cur) =>
     parseReadingInstantMs(cur.timestamp) > parseReadingInstantMs(best.timestamp) ? cur : best
@@ -42,16 +58,17 @@ export function buildIrrigationRecommendation(params: {
   hasSoilSensor: boolean;
 }): IrrigationDecision {
   const rain = clampRainPct(params.rainProbabilityPercent);
+  const soilCoerced = coerceSensorNumeric(params.soilValue);
 
-  if (!params.hasSoilSensor || params.soilValue === null) {
+  if (!params.hasSoilSensor || soilCoerced === null) {
     return {
       action: "Sin dato de suelo",
       suggestedTime: "No disponible",
-      reason: "No se encontró un sensor de humedad de suelo en el backend IoT."
+      reason: "No se encontró un sensor de humedad de suelo con valor numérico válido en el backend IoT."
     };
   }
 
-  const v = params.soilValue;
+  const v = soilCoerced;
 
   if (v < 30) {
     if (rain < 40) {

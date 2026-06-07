@@ -1,5 +1,6 @@
 import type { SensorReadingResponse } from "@/lib/api/types";
 import { sensorIconMap } from "@/modules/sensores/components/sensorIconMap";
+import { isTankWaterLevelGaugeCandidate } from "@/modules/sensores/lib/readingPresentation";
 import { formatRelativeTime, formatValueWithUnit, isReadingRecent } from "@/modules/dashboard/lib/iotPresentation";
 import { formatSensorTypeTitle, getSensorSubtitle } from "@/shared/lib/sensorDisplay";
 import { Card } from "@/shared/components/ui/Card";
@@ -20,14 +21,25 @@ export function SensorPlainReadingCard({ reading }: { reading: SensorReadingResp
   const online = isReadingRecent(reading.timestamp);
   const title = formatSensorTypeTitle(reading.type);
   const subtitle = getSensorSubtitle(reading.sensorId, reading.timestamp);
+  const tankReading = isTankWaterLevelGaugeCandidate(reading.type, reading.sensorId);
 
   return (
-    <Card className="flex min-h-[258px] flex-col gap-4 !p-6">
+    <Card
+      className={
+        tankReading
+          ? "flex min-h-[258px] flex-col gap-4 border-teal-500/35 !p-6 ring-1 ring-teal-500/15 dark:border-teal-500/30"
+          : "flex min-h-[258px] flex-col gap-4 !p-6"
+      }
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{title}</p>
           <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400">{subtitle}</p>
-          <p className="mt-1 text-[9px] text-slate-500">Lectura directa (sin escala tipo gauge)</p>
+          <p className="mt-1 text-[9px] text-slate-500 dark:text-slate-400">
+            {tankReading
+              ? "Nivel IoT · verifica escala física vs unidad configurada"
+              : "Lectura directa (sin escala tipo gauge)"}
+          </p>
         </div>
         <IconBox icon={Icon} className="size-8" iconSizeClassName="size-3.5" rounded="full" />
       </div>
